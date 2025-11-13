@@ -15,8 +15,8 @@ class MailchimpService
     public function __construct()
     {
         $webConfig = new WebConfig();
-        $this->apiKey = 'getenv("MAILCHIMP_API_KEY") ?: ""';
-        $this->server = 'us11';
+        $this->apiKey = getenv('MAILCHIMP_API_KEY') ?: '';
+        $this->server = getenv('MAILCHIMP_SERVER') ?: 'us11';
         $this->baseUrl = "https://{$this->server}.api.mailchimp.com/3.0";
         
         // Get audience and segment IDs (gracefully handle if not found)

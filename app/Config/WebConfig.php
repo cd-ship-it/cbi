@@ -18,11 +18,11 @@ class WebConfig extends \CodeIgniter\Config\BaseConfig
 	public $googleCLIENT_ID = '627452465726-ccmjlaks98jnsb3ftr4ppis2e10su1od.apps.googleusercontent.com';
 	public $google_client_secret = '93f_WvGhW3n_i07U5aLaUSi0';
 
-	public $yahoo_client_id = 'dj0yJmk9dEc3MEhiNWxVTWhGJmQ9WVdrOVNWTlJXRmR4YW5JbWNHbzlNQT09JnM9Y29uc3VtZXJzZWNyZXQmc3Y9MCZ4PWM1';
-	public $yahoo_client_secret = 'b2e7b9b60bb8eb8a585276b810656d1a395d19d7';
+	public $yahoo_client_id = getenv('YAHOO_CLIENT_ID') ?: '';
+	public $yahoo_client_secret = getenv('YAHOO_CLIENT_SECRET') ?: '';
 	
-	public $microsoft_client_id = '8dcf6ecd-7b6e-4473-a8df-53e47573da0d';
-	public $microsoft_client_secret = 'getenv("MICROSOFT_CLIENT_SECRET") ?: ""';		
+	public $microsoft_client_id = getenv('MICROSOFT_CLIENT_ID') ?: '';
+	public $microsoft_client_secret = getenv('MICROSOFT_CLIENT_SECRET') ?: '';		
 
 	public $sites =['Milpitas','Pleasanton','Peninsula','Tracy','San Leandro','Stockton'];
 	public $memberCodes = array( 1=>'Inactive', 2=>'Guest', 3=>'Member', 4=>'Pre-Member', 5=>'Ex-Member', 6=>'Pending');
