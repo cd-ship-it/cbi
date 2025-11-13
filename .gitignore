@@ -1,0 +1,36 @@
+# Ignore everything except app directory
+/*
+!/app
+
+# Ignore writable directories
+writable/cache/*
+!writable/cache/index.html
+writable/logs/*
+!writable/logs/index.html
+writable/session/*
+!writable/session/index.html
+writable/uploads/*
+!writable/uploads/index.html
+writable/debugbar/*
+writable/cronjobLogs*
+writable/translation
+
+# Ignore environment files
+.env
+.env.*
+
+# Ignore vendor directory
+vendor/
+
+# Ignore composer files
+composer.lock
+
+# Ignore IDE files
+.idea/
+.vscode/
+*.iml
+
+# Ignore OS files
+.DS_Store
+Thumbs.db
+
