@@ -15,8 +15,8 @@ class WebConfig extends \CodeIgniter\Config\BaseConfig
 
 
 	
-	public $googleCLIENT_ID = '627452465726-ccmjlaks98jnsb3ftr4ppis2e10su1od.apps.googleusercontent.com';
-	public $google_client_secret = '93f_WvGhW3n_i07U5aLaUSi0';
+	public $googleCLIENT_ID = '';
+	public $google_client_secret = '';
 
 	public $yahoo_client_id = '';
 	public $yahoo_client_secret = '';
@@ -27,6 +27,8 @@ class WebConfig extends \CodeIgniter\Config\BaseConfig
 	public function __construct()
 	{
 		parent::__construct();
+		$this->googleCLIENT_ID = getenv('GOOGLE_CLIENT_ID') ?: '';
+		$this->google_client_secret = getenv('GOOGLE_CLIENT_SECRET') ?: '';
 		$this->yahoo_client_id = getenv('YAHOO_CLIENT_ID') ?: '';
 		$this->yahoo_client_secret = getenv('YAHOO_CLIENT_SECRET') ?: '';
 		$this->microsoft_client_id = getenv('MICROSOFT_CLIENT_ID') ?: '';
