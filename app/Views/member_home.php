@@ -495,7 +495,7 @@ form select{width:50%;}
 			  
 			  
   
-        <div class="signinBt sbt_google" onClick="popupWindow('https://accounts.google.com/o/oauth2/v2/auth?scope=openid%20profile%20email&response_type=code&redirect_uri=<?= urlencode($OAuthUrl.'?dsf=google&action=change'); ?>&client_id=<?= $webConfig->googleCLIENT_ID; ?>', 'Sign in with google', window, 610, 600);">Sign in with google</div>
+        <div class="signinBt sbt_google" onClick="popupWindow('https://accounts.google.com/o/oauth2/v2/auth?scope=openid%20profile%20email&response_type=code&access_type=offline&prompt=consent&redirect_uri=<?= urlencode($OAuthUrl.'?dsf=google&action=change'); ?>&client_id=<?= $webConfig->googleCLIENT_ID; ?>', 'Sign in with google', window, 610, 600);">Sign in with google</div>
        
 	   <div class="signinBt sbt_yahoo" onClick="popupWindow('https://api.login.yahoo.com/oauth2/request_auth?client_id=<?= $webConfig->yahoo_client_id; ?>&response_type=code&redirect_uri=<?= urlencode($OAuthUrl.'?dsf=yahoo&action=change'); ?>&scope=openid&nonce=YihsFwGKgt3KJUh6tPs2', 'Sign in with yahoo', window, 610, 600);">Sign in with yahoo</div>  
 	   

@@ -153,6 +153,11 @@ class OAuth extends BaseController
 					$dsfUser['mname'] = isset($fullNameArr[2])?$fullNameArr[1]:'';
 					$dsfUser['lname'] = isset($fullNameArr[1])?$fullNameArr[1]:'';
 					$dsfUser['dsfPicture'] = $r_user_obj->picture;
+					
+					// Store refresh token if provided (for long-term authentication)
+					if(isset($r_token_obj->refresh_token)){
+						$dsfUser['refresh_token'] = $r_token_obj->refresh_token;
+					}
 				
 					}
 				}

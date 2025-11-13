@@ -260,7 +260,7 @@ p.recommend{ margin-top:20px;}
 			  
 <?php if(!$isLogin): ?>
   
-       <div class="signinBt sbt_google" onClick="popupWindow('https://accounts.google.com/o/oauth2/v2/auth?scope=openid%20profile%20email&response_type=code&redirect_uri=<?= (urlencode(base_url("OAuth").'?dsf=google&action=signup')); ?>&client_id=<?= $webConfig->googleCLIENT_ID; ?>', 'Sign in with google', window, 610, 600);"><?= lang('cbi_lang.signGoolge', [],$userLg); ?></div>
+       <div class="signinBt sbt_google" onClick="popupWindow('https://accounts.google.com/o/oauth2/v2/auth?scope=openid%20profile%20email&response_type=code&access_type=offline&prompt=consent&redirect_uri=<?= (urlencode(base_url("OAuth").'?dsf=google&action=signup')); ?>&client_id=<?= $webConfig->googleCLIENT_ID; ?>', 'Sign in with google', window, 610, 600);"><?= lang('cbi_lang.signGoolge', [],$userLg); ?></div>
        
 	   <div class="signinBt sbt_yahoo" onClick="popupWindow('https://api.login.yahoo.com/oauth2/request_auth?client_id=<?= $webConfig->yahoo_client_id; ?>&response_type=code&redirect_uri=<?= (urlencode(base_url("OAuth").'?dsf=yahoo&action=signup')); ?>&scope=openid&nonce=YihsFwGKgt3KJUh6tPs2', 'Yahoo Sign In', window, 610, 600);"><?= lang('cbi_lang.signYahoo', [],$userLg); ?></div>
 		
