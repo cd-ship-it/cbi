@@ -1,4 +1,21 @@
-<?php $error_id = uniqid('error', true); ?>
+<?php 
+$error_id = uniqid('error', true);
+
+// Helper functions to access protected static methods
+function callHighlightFile($file, $line, $lines = 15) {
+	$reflection = new \ReflectionClass(\CodeIgniter\Debug\BaseExceptionHandler::class);
+	$method = $reflection->getMethod('highlightFile');
+	$method->setAccessible(true);
+	return $method->invokeArgs(null, [$file, $line, $lines]);
+}
+
+function callDescribeMemory($bytes) {
+	$reflection = new \ReflectionClass(\CodeIgniter\Debug\BaseExceptionHandler::class);
+	$method = $reflection->getMethod('describeMemory');
+	$method->setAccessible(true);
+	return $method->invokeArgs(null, [$bytes]);
+}
+?>
 <!doctype html>
 <html>
 <head>
@@ -30,11 +47,11 @@
 
 	<!-- Source -->
 	<div class="container">
-		<p><b><?= static::cleanPath($file, $line) ?></b> at line <b><?= $line ?></b></p>
+		<p><b><?= clean_path($file) ?></b> at line <b><?= $line ?></b></p>
 
 		<?php if (is_file($file)) : ?>
 			<div class="source">
-				<?= static::highlightFile($file, $line, 15); ?>
+				<?= callHighlightFile($file, $line, 15); ?>
 			</div>
 		<?php endif; ?>
 	</div>
@@ -66,11 +83,11 @@
 								<?php
 								if (isset($row['function']) && in_array($row['function'], ['include', 'include_once', 'require', 'require_once']))
 									{
-									echo $row['function'] . ' ' . static::cleanPath($row['file']);
+									echo $row['function'] . ' ' . clean_path($row['file']);
 								}
 								else
 									{
-									echo static::cleanPath($row['file']) . ' : ' . $row['line'];
+									echo clean_path($row['file']) . ' : ' . $row['line'];
 								}
 								?>
 							<?php else : ?>
@@ -116,7 +133,7 @@
 						<!-- Source? -->
 						<?php if (isset($row['file']) && is_file($row['file']) &&  isset($row['class'])) : ?>
 							<div class="source">
-								<?= static::highlightFile($row['file'], $row['line']) ?>
+								<?= callHighlightFile($row['file'], $row['line']); ?>
 							</div>
 						<?php endif; ?>
 					</li>
@@ -354,7 +371,7 @@
 
 				<ol>
 				<?php foreach ($files as $file) :?>
-					<li><?= htmlspecialchars( static::cleanPath($file), ENT_SUBSTITUTE, 'UTF-8') ?></li>
+					<li><?= htmlspecialchars( clean_path($file), ENT_SUBSTITUTE, 'UTF-8') ?></li>
 				<?php endforeach ?>
 				</ol>
 			</div>
@@ -366,11 +383,11 @@
 					<tbody>
 						<tr>
 							<td>Memory Usage</td>
-							<td><?= static::describeMemory(memory_get_usage(true)) ?></td>
+							<td><?= callDescribeMemory(memory_get_usage(true)) ?></td>
 						</tr>
 						<tr>
 							<td style="width: 12em">Peak Memory Usage:</td>
-							<td><?= static::describeMemory(memory_get_peak_usage(true)) ?></td>
+							<td><?= callDescribeMemory(memory_get_peak_usage(true)) ?></td>
 						</tr>
 						<tr>
 							<td>Memory Limit:</td>
