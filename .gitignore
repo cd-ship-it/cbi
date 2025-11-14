@@ -1,6 +1,9 @@
 # Ignore everything except app directory
 /*
 !/app
+!PULL_PRODUCTION_GUIDE.md
+!SYNC_PRODUCTION_GUIDE.md
+!sync_production_to_git.sh
 
 # Ignore writable directories
 writable/cache/*
