@@ -327,7 +327,7 @@ class Pending extends BaseController
 				if($baptist['inactive']!=6){
 				
 					
-					$emails = $modelProfiles->whereIn('id', [$the_office_assistant,$the_office_director,$the_com_director])->findColumn('email');
+					$emails = $modelProfiles->whereIn('id', [$the_office_assistant,$the_office_director])->findColumn('email');
 					$emailsVars = [];
 					$pUrl = base_url('xAdmin/pending/form/'.$bid);
 					
@@ -476,7 +476,7 @@ class Pending extends BaseController
 			if(isLocalServer()){
 				// Always show admin approval on local server
 				$data['showAdminApproval'] = true;
-			}elseif(  $_SESSION['mloggedin'] && in_array($_SESSION['mloggedin'],[$the_office_assistant,$the_office_director,$the_com_director]) && $baptist['inactive']==6 ){
+			}elseif(  $_SESSION['mloggedin'] && in_array($_SESSION['mloggedin'],[$the_office_assistant,$the_office_director]) && $baptist['inactive']==6 ){
 				
 				$data['showAdminApproval'] = true;
 				
