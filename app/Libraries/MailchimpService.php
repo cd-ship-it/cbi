@@ -19,11 +19,28 @@ class MailchimpService
         $this->server = getenv('MAILCHIMP_SERVER') ?: 'us11';
         $this->baseUrl = "https://{$this->server}.api.mailchimp.com/3.0";
         
+        // Check if API key is set
+        if (empty($this->apiKey)) {
+            log_message('error', 'MailchimpService: MAILCHIMP_API_KEY environment variable is not set');
+            $this->listId = null;
+            $this->segmentId = null;
+            return;
+        }
+        
         // Get audience and segment IDs (gracefully handle if not found)
         try {
+            log_message('debug', 'MailchimpService: Attempting to get audience ID for "XP Members"');
             $this->listId = $this->getAudienceId('XP Members');
             if ($this->listId) {
+                log_message('debug', 'MailchimpService: Found audience ID: ' . $this->listId);
                 $this->segmentId = $this->getSegmentId($this->listId, 'Members');
+                if ($this->segmentId) {
+                    log_message('debug', 'MailchimpService: Found segment ID: ' . $this->segmentId);
+                } else {
+                    log_message('warning', 'MailchimpService: Segment "Members" not found for audience "XP Members"');
+                }
+            } else {
+                log_message('error', 'MailchimpService: Audience "XP Members" not found. Check if the audience exists in Mailchimp and the name matches exactly.');
             }
         } catch (\Exception $e) {
             // Log error but don't fail - allow operations to continue
@@ -36,15 +53,48 @@ class MailchimpService
     private function getAudienceId($audienceName)
     {
         $url = "{$this->baseUrl}/lists";
+        log_message('debug', 'MailchimpService: getAudienceId - Making API call to: ' . $url);
         $result = $this->makeRequest('GET', $url, ['count' => 1000]);
         
-        if ($result && $result['success'] && isset($result['data']['lists'])) {
-            foreach ($result['data']['lists'] as $list) {
-                if ($list['name'] === $audienceName) {
-                    return $list['id'];
-                }
+        if (!$result) {
+            log_message('error', 'MailchimpService: getAudienceId - No response from API');
+            return null;
+        }
+        
+        if (!$result['success']) {
+            $errorMsg = 'MailchimpService: getAudienceId - API call failed';
+            if (isset($result['http_code'])) {
+                $errorMsg .= ' (HTTP ' . $result['http_code'] . ')';
+            }
+            if (isset($result['message'])) {
+                $errorMsg .= ': ' . $result['message'];
+            }
+            log_message('error', $errorMsg);
+            return null;
+        }
+        
+        if (!isset($result['data']['lists'])) {
+            log_message('error', 'MailchimpService: getAudienceId - Response does not contain lists array');
+            return null;
+        }
+        
+        $lists = $result['data']['lists'];
+        log_message('debug', 'MailchimpService: getAudienceId - Found ' . count($lists) . ' audiences');
+        
+        // Log all audience names for debugging
+        $audienceNames = array_map(function($list) {
+            return $list['name'];
+        }, $lists);
+        log_message('debug', 'MailchimpService: getAudienceId - Available audiences: ' . implode(', ', $audienceNames));
+        
+        foreach ($lists as $list) {
+            if ($list['name'] === $audienceName) {
+                log_message('debug', 'MailchimpService: getAudienceId - Found matching audience: ' . $audienceName . ' (ID: ' . $list['id'] . ')');
+                return $list['id'];
             }
         }
+        
+        log_message('error', 'MailchimpService: getAudienceId - Audience "' . $audienceName . '" not found in available audiences');
         return null;
     }
     
@@ -153,14 +203,18 @@ class MailchimpService
     
     public function getMemberByEmail($email)
     {
+        log_message('debug', 'MailchimpService: getMemberByEmail called with email: ' . $email);
         if (!$this->listId || !$email) {
+            log_message('debug', 'MailchimpService: getMemberByEmail - Missing listId or email. listId: ' . ($this->listId ?: 'null') . ', email: ' . ($email ?: 'null'));
             return null;
         }
         
         $emailHash = md5(strtolower($email));
         $url = "{$this->baseUrl}/lists/{$this->listId}/members/{$emailHash}";
+        log_message('debug', 'MailchimpService: getMemberByEmail - Making API call to: ' . $url);
         
         $result = $this->makeRequest('GET', $url);
+        log_message('debug', 'MailchimpService: getMemberByEmail - API response success: ' . ($result && $result['success'] ? 'true' : 'false'));
         if ($result && $result['success']) {
             return $result['data'];
         }
@@ -169,12 +223,16 @@ class MailchimpService
     
     public function createOrUpdateMember($email, $fName, $lName, $status = 'subscribed')
     {
+        log_message('debug', 'MailchimpService: createOrUpdateMember called - email: ' . $email . ', fName: ' . $fName . ', lName: ' . $lName . ', status: ' . $status);
         if (!$this->listId || !$email) {
-            return ['success' => false, 'message' => 'Missing list ID or email. List ID: ' . ($this->listId ?: 'null') . ', Email: ' . ($email ?: 'null')];
+            $errorMsg = 'Missing list ID or email. List ID: ' . ($this->listId ?: 'null') . ', Email: ' . ($email ?: 'null');
+            log_message('debug', 'MailchimpService: createOrUpdateMember - ' . $errorMsg);
+            return ['success' => false, 'message' => $errorMsg];
         }
         
         $emailHash = md5(strtolower($email));
         $url = "{$this->baseUrl}/lists/{$this->listId}/members/{$emailHash}";
+        log_message('debug', 'MailchimpService: createOrUpdateMember - Making API call to: ' . $url);
         
         $data = [
             'email_address' => strtolower($email),
@@ -184,8 +242,13 @@ class MailchimpService
                 'LNAME' => $lName
             ]
         ];
+        log_message('debug', 'MailchimpService: createOrUpdateMember - Request data: ' . json_encode($data));
         
         $result = $this->makeRequest('PUT', $url, $data);
+        log_message('debug', 'MailchimpService: createOrUpdateMember - API response success: ' . ($result && $result['success'] ? 'true' : 'false'));
+        if (!$result || !$result['success']) {
+            log_message('debug', 'MailchimpService: createOrUpdateMember - Error details: ' . json_encode($result));
+        }
         
         if ($result && $result['success']) {
             // Add to segment if status is subscribed and segment exists
@@ -399,6 +462,39 @@ class MailchimpService
         
         $result = $this->makeRequest('POST', $url, $data);
         return $result && $result['success'];
+    }
+    
+    /**
+     * Diagnostic method to check service configuration and status
+     * Returns an array with configuration details and status
+     */
+    public function getServiceStatus()
+    {
+        $status = [
+            'api_key_set' => !empty($this->apiKey),
+            'api_key_length' => strlen($this->apiKey),
+            'server' => $this->server,
+            'base_url' => $this->baseUrl,
+            'list_id' => $this->listId,
+            'segment_id' => $this->segmentId,
+            'list_id_set' => !empty($this->listId),
+            'segment_id_set' => !empty($this->segmentId)
+        ];
+        
+        // Test API connection if API key is set
+        if (!empty($this->apiKey)) {
+            $url = "{$this->baseUrl}/lists";
+            $result = $this->makeRequest('GET', $url, ['count' => 1]);
+            $status['api_connection'] = $result && $result['success'] ? 'success' : 'failed';
+            if (!$result || !$result['success']) {
+                $status['api_error'] = $result['message'] ?? 'Unknown error';
+                $status['api_http_code'] = $result['http_code'] ?? null;
+            }
+        } else {
+            $status['api_connection'] = 'not_tested';
+        }
+        
+        return $status;
     }
 }
 

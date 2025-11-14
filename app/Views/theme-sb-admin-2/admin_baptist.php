@@ -434,7 +434,10 @@ function mode0html($bid,$curriculumCodes,$results){
 		</p>		
 		<p>Membership Date: <input  class="form-control dateInput"  value="<?= (isset($user['membershipDate'])&&$user['membershipDate']?date("m/d/Y",$user['membershipDate']):''); ?>" name="membershipDate" id="membershipDate" title="Membership Date" /></p>
 		
-		<p>Mailchimp Status: <input class="form-control" value="<?= (isset($user['onMailchimp'])&&$user['onMailchimp']?ucfirst($user['onMailchimp']):'Not set'); ?>" name="onMailchimp" id="onMailchimp" readonly disabled style="background-color: #e9ecef; cursor: not-allowed;" /></p>
+		<p>Mailchimp Status: 
+			<input class="form-control d-inline-block" value="<?= (isset($user['onMailchimp'])&&$user['onMailchimp']?ucfirst($user['onMailchimp']):'Not set'); ?>" name="onMailchimp" id="onMailchimp" readonly disabled style="background-color: #e9ecef; cursor: not-allowed; width: auto; min-width: 150px;" />
+			<button type="button" class="btn btn-sm ml-2" id="syncMailchimpBtn" onclick="syncWithMailchimp(<?= $bid; ?>)" style="background-color: white; color: #007bff; border: 1px solid #007bff;">Sync with MailChimp</button>
+		</p>
 	<?php endif; ?>
 		
 
@@ -485,7 +488,7 @@ function mode0html($bid,$curriculumCodes,$results){
 	<div id="mailchimpOverlay">
 		<div class="loader">
 			<div class="spinner"></div>
-			<div>Updating MailChimp...</div>
+			<div>Updating Database and MailChimp...</div>
 		</div>
 	</div>
 
@@ -966,6 +969,55 @@ tr.signin a.profile{ background:url(<?= base_url(); ?>/assets/images/member.png)
 		}
 
 
+	}
+
+	function syncWithMailchimp(bid){
+		if(!bid) {
+			alert('Error: User ID is required');
+			return;
+		}
+		
+		// Show overlay
+		$('#mailchimpOverlay').addClass('active');
+		$('#syncMailchimpBtn').prop('disabled', true);
+		
+		$.ajax({
+			dataType:'json',
+			method: "POST",
+			url: '<?= base_url('xAdmin/baptist/syncMailchimp'); ?>',
+			data: {bid: bid},
+			success: function(response) {
+				// Hide overlay
+				$('#mailchimpOverlay').removeClass('active');
+				$('#syncMailchimpBtn').prop('disabled', false);
+				
+				if(response && response.success) {
+					// Update MailChimp status field
+					if(response.onMailchimp) {
+						var status = response.onMailchimp;
+						$('#onMailchimp').val(status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Not set');
+					}
+					
+					// Show success message
+					var message = response.message || 'MailChimp sync completed successfully';
+					$('#baptistForm .fmsg').html('<span style="color: green;">' + message + '</span>');
+					
+					// Clear message after 5 seconds
+					setTimeout(function() {
+						$('#baptistForm .fmsg').html('');
+					}, 5000);
+				} else {
+					var errorMsg = response.message || 'MailChimp sync failed';
+					$('#baptistForm .fmsg').html('<span style="color: red;">' + errorMsg + '</span>');
+				}
+			},
+			error: function(xhr, status, error) {
+				// Hide overlay on error
+				$('#mailchimpOverlay').removeClass('active');
+				$('#syncMailchimpBtn').prop('disabled', false);
+				$('#baptistForm .fmsg').html('<span style="color: red;">Error: ' + error + '</span>');
+			}
+		});
 	}
 
 

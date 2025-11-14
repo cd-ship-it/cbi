@@ -62,6 +62,8 @@ $routes->add('xAdmin/group/(:num)', 'XAdmin\Group::index/$1');
 $routes->add('xAdmin/baptist', 'XAdmin\Baptist::index');
 $routes->add('xAdmin/baptist/(:num)', 'XAdmin\Baptist::index/$1');
 $routes->add('xAdmin/baptist/user_pto_update', 'XAdmin\Baptist::user_pto_update');
+$routes->add('xAdmin/baptist/syncMailchimp', 'XAdmin\Baptist::syncMailchimp');
+$routes->add('xAdmin/baptist/getMailchimpStatus', 'XAdmin\Baptist::getMailchimpStatus');
 
 
 $routes->add('xAdmin/search', 'XAdmin\Search::index');

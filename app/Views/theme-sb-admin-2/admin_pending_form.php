@@ -163,7 +163,15 @@ User picture:<br />
 
 </form>
 
-</div>				
+</div>
+
+	<!-- MailChimp Loading Overlay -->
+	<div id="mailchimpOverlay">
+		<div class="loader">
+			<div class="spinner"></div>
+			<div>Updating Database and MailChimp...</div>
+		</div>
+	</div>				
 				
 				
 				
@@ -221,6 +229,40 @@ input,input:focus{ border: 1px #444 solid;}
 
 .group-1 {    background: #eee;    padding: 10px;    margin: 25px 0;}	
 
+/* Loading overlay for MailChimp operations */
+#mailchimpOverlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 9999;
+    justify-content: center;
+    align-items: center;
+}
+#mailchimpOverlay.active {
+    display: flex;
+}
+#mailchimpOverlay .loader {
+    text-align: center;
+    color: white;
+}
+#mailchimpOverlay .spinner {
+    border: 5px solid #f3f3f3;
+    border-top: 5px solid #3498db;
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 20px;
+}
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
 @media screen and (max-width:375px ) {
 	
 	
@@ -265,18 +307,29 @@ $("#baptistForm").submit(function(event){
 	
     event.preventDefault();
 
+	console.log('=== Form Submission Started ===');
+	
 	var error='';
 	$('#baptistForm .fmsg').html('Loading...');
 	
 	error = validater(document.getElementById('baptistForm'));
 	
 	
-	var n = $( '[type="checkbox"]:checked' ).length; console.log(n);
+	var n = $( '[type="checkbox"]:checked' ).length; 
+	console.log('Checked checkboxes count:', n);
 	if(n<6){
 		error += 'All items must be checked to join membership.<br />'
 	}
 	
+	// Check if inactive radio button is selected
+	var inactiveValue = $('input[name="inactive"]:checked').val();
+	console.log('Inactive status selected:', inactiveValue);
+	
+	// Check if MailChimp overlay should be shown (when status changes to Member (3))
+	var showMailchimpOverlay = (inactiveValue == '3');
+	
 	if(error){
+		console.log('Validation errors:', error);
 		$('#baptistForm .fmsg').html(error);
 	}else{
 		
@@ -284,20 +337,54 @@ $("#baptistForm").submit(function(event){
 		if(ajaxer) ajaxer.abort(); 
 		
 		var params = $(this).serialize();
+		console.log('Form data being sent:', params);
+		console.log('Submitting to URL:', '<?= $canonical; ?>');
 		
-		
+		// Show overlay if MailChimp update is expected
+		if(showMailchimpOverlay) {
+			$('#mailchimpOverlay').addClass('active');
+		}
 		
 		timer = setTimeout(function() {
 			
+			console.log('=== Making AJAX Request ===');
 			ajaxer = $.ajax({
 				dataType:'html',
 				method: "POST",
+				url: '<?= $canonical; ?>',
 				data: params,      
 				success:function(data){
 					
+						// Hide overlay
+						$('#mailchimpOverlay').removeClass('active');
+					
+						console.log('=== AJAX Response Received ===');
+						console.log('Full response:', data);
+						console.log('Response length:', data.length);
+						
+						// Check if MailChimp message is in response
+						if(data.indexOf('MailChimp') !== -1) {
+							console.log('✓ MailChimp message found in response!');
+							var mailchimpIndex = data.indexOf('MailChimp');
+							var mailchimpMsg = data.substring(mailchimpIndex);
+							console.log('MailChimp message:', mailchimpMsg);
+						} else {
+							console.log('✗ No MailChimp message found in response');
+							console.log('Response does not contain "MailChimp" keyword');
+						}
+						
 						$('#baptistForm .fmsg').html(data);
 
 					
+				},
+				error: function(xhr, status, error) {
+					// Hide overlay on error
+					$('#mailchimpOverlay').removeClass('active');
+					console.log('=== AJAX Error ===');
+					console.log('Status:', status);
+					console.log('Error:', error);
+					console.log('Response Text:', xhr.responseText);
+					$('#baptistForm .fmsg').html('Error: ' + error);
 				}
 			});
 			

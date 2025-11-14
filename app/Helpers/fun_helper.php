@@ -19,6 +19,16 @@ function debug(){
 		return (isset($_SESSION['mloggedin']) &&  $_SESSION['mloggedin'] == 545);
 }
 
+/**
+ * Check if the application is running on a local server
+ * 
+ * @return bool True if running on local server (development environment or localhost)
+ */
+function isLocalServer(){
+	return (defined('ENVIRONMENT') && ENVIRONMENT === 'development') || 
+		   (isset($_SERVER['HTTP_HOST']) && $_SERVER['HTTP_HOST'] === 'localhost');
+}
+
 function checkPermissionOnly($code){
 
 	

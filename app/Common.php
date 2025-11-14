@@ -13,3 +13,15 @@
  *
  * @see: https://codeigniter.com/user_guide/extending/common.html
  */
+
+/**
+ * Check if the application is running on a local server
+ * 
+ * @return bool True if running on local server (development environment or localhost)
+ */
+if (!function_exists('isLocalServer')) {
+	function isLocalServer(){
+		return (defined('ENVIRONMENT') && ENVIRONMENT === 'development') || 
+			   (isset($_SERVER['HTTP_HOST']) && $_SERVER['HTTP_HOST'] === 'localhost');
+	}
+}

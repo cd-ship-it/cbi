@@ -9,7 +9,8 @@ use App\Models\ClassesModel;
 use App\Models\RecommendationModel;		
 use App\Models\ProfilesModel;
 use App\Models\CapabilitiesModel; 	
-use App\Models\ElearningModel;		
+use App\Models\ElearningModel;
+use App\Libraries\MailchimpService;		
 
 class Pending extends BaseController
 {
@@ -129,7 +130,7 @@ class Pending extends BaseController
 		
 		$the_office_director = $modelCapabilities->get_sp_users('is_office_director');
 		$the_office_assistant = $modelCapabilities->get_sp_users('is_office_assistant');	
-
+		
 
 		$the_office_assistant_email = $modelProfiles->db_m_getUserField($the_office_assistant,'email');
 		
@@ -198,13 +199,23 @@ class Pending extends BaseController
 			
 			$modelProfiles = new ProfilesModel();
 			
+			// MailChimp integration
+			$mailchimpService = new MailchimpService();
+			$mailchimpMessage = '';
 			
+			// Get old status before update
+			$oldStatus = isset($baptist['inactive']) ? $baptist['inactive'] : null;
+			$userEmail = isset($baptist['email']) ? $baptist['email'] : '';
+			$userFName = isset($baptist['fName']) ? $baptist['fName'] : '';
+			$userLName = isset($baptist['lName']) ? $baptist['lName'] : '';
+
 			
 			if($inactiveCode){		
 			
 				$upData=array('inactive'=>$inactiveCode);
 				
 				if($inactiveCode==3){
+					log_message('debug', 'Pending form: Status changed to 3 (Member) for bid ' . $bid);
 					$upData['membershipDate'] = time(); 
 					$modelProfiles->update($bid,$upData);
 					
@@ -236,6 +247,67 @@ class Pending extends BaseController
 						$rr = $this->webConfig->sendtomandrill($subject, $message, $to, $the_office_assistant_email);							
 						
 					}
+					
+					// MailChimp sync when status becomes Member (3)
+					if($userEmail && $userFName && $userLName) {
+						try {
+							// Check if member exists in MailChimp
+							//log_message('debug', 'MailChimp: Checking if member exists in MailChimp...');
+							$mcMember = $mailchimpService->getMemberByEmail($userEmail);
+							//log_message('debug', 'MailChimp: getMemberByEmail result - ' . ($mcMember ? 'Member found' : 'Member not found'));
+							if($mcMember) {
+								// Member exists, update to subscribed
+								//log_message('debug', 'MailChimp: Member exists, calling createOrUpdateMember to update...');
+								$mcResult = $mailchimpService->createOrUpdateMember($userEmail, $userFName, $userLName, 'subscribed');
+								//log_message('debug', 'MailChimp: createOrUpdateMember result - success: ' . ($mcResult['success'] ? 'true' : 'false'));
+								if($mcResult['success']) {
+									// Update onMailchimp column in database
+									$modelProfiles->update($bid, ['onMailchimp' => 'subscribed']);
+									$mailchimpMessage .= ' | MailChimp: Updated to subscribed';
+								} else {
+									// Check for HTTP 400 error (user unsubscribed themselves)
+									$httpCode = $mcResult['debug']['http_code'] ?? $mcResult['http_code'] ?? null;
+									if($httpCode == 400) {
+										$mailchimpMessage .= ' | Since this user unsubscribed his/herself, you can\'t not re-subscribe them without their consent.';
+									} else {
+										$errorMsg = $mcResult['message'] ?? 'Unknown error';
+										$mailchimpMessage .= ' | MailChimp update failed: ' . $errorMsg;
+									}
+									log_message('error', 'MailChimp update failed for bid ' . $bid . ' (email: ' . $userEmail . '): ' . ($mcResult['message'] ?? 'Unknown error') . ' [Debug: ' . json_encode($mcResult) . ']');
+								}
+							} else {
+								// Member doesn't exist, create new contact
+								//log_message('debug', 'MailChimp: Member does not exist, calling createOrUpdateMember to create...');
+								$mcResult = $mailchimpService->createOrUpdateMember($userEmail, $userFName, $userLName, 'subscribed');
+								//log_message('debug', 'MailChimp: createOrUpdateMember result - success: ' . ($mcResult['success'] ? 'true' : 'false'));
+								if($mcResult['success']) {
+									// Update onMailchimp column in database
+									$modelProfiles->update($bid, ['onMailchimp' => 'subscribed']);
+									$mailchimpMessage .= ' | MailChimp: New contact created and subscribed';
+								} else {
+									// Check for HTTP 400 error (user unsubscribed themselves)
+									$httpCode = $mcResult['debug']['http_code'] ?? $mcResult['http_code'] ?? null;
+									if($httpCode == 400) {
+										$mailchimpMessage .= ' | Since this user unsubscribed his/herself, you can\'t not re-subscribe them without their consent.';
+									} else {
+										$errorMsg = $mcResult['message'] ?? 'Unknown error';
+										$mailchimpMessage .= ' | MailChimp creation failed: ' . $errorMsg;
+									}
+									log_message('error', 'MailChimp creation failed for bid ' . $bid . ' (email: ' . $userEmail . ', fName: ' . $userFName . ', lName: ' . $userLName . '): ' . ($mcResult['message'] ?? 'Unknown error') . ' [Debug: ' . json_encode($mcResult) . ']');
+								}
+							}
+						} catch(\Exception $e) {
+							$mailchimpMessage .= ' | MailChimp error: ' . $e->getMessage();
+							log_message('error', 'MailChimp exception for bid ' . $bid . ': ' . $e->getMessage());
+						}
+					} else {
+						// Missing required fields for MailChimp
+						$missingFields = [];
+						if(!$userEmail) $missingFields[] = 'email';
+						if(!$userFName) $missingFields[] = 'first name';
+						if(!$userLName) $missingFields[] = 'last name';
+						$mailchimpMessage .= ' | MailChimp: Cannot sync - missing ' . implode(', ', $missingFields);
+					}
 							
 					
 					
@@ -255,7 +327,7 @@ class Pending extends BaseController
 				if($baptist['inactive']!=6){
 				
 					
-					$emails = $modelProfiles->whereIn('id', [$the_office_assistant,$the_office_director])->findColumn('email');
+					$emails = $modelProfiles->whereIn('id', [$the_office_assistant,$the_office_director,$the_com_director])->findColumn('email');
 					$emailsVars = [];
 					$pUrl = base_url('xAdmin/pending/form/'.$bid);
 					
@@ -305,12 +377,30 @@ class Pending extends BaseController
 			}
 			
 			
+			$responseMessage = '';
 			if($r){
-				echo 'Updated successfully';
+				$responseMessage = 'Updated successfully';
 				
 			}else{
-				echo 'error';
+				$responseMessage = 'error';
 			}
+			
+			// Append MailChimp message to response (always append, even if empty for debugging)
+			//log_message('debug', 'Pending form response: mailchimpMessage = "' . $mailchimpMessage . '"');
+			//log_message('debug', 'Pending form response: inactiveCode = ' . ($inactiveCode ?? 'null'));
+			
+			if($mailchimpMessage) {
+				$responseMessage .= $mailchimpMessage;
+				//log_message('debug', 'Pending form: Appending MailChimp message to response');
+			} else if($inactiveCode == 3) {
+				// If status is 3 but no MailChimp message, indicate why
+				$responseMessage .= ' | MailChimp: Sync not performed (check logs for details)';
+				//log_message('debug', 'Pending form: Status is 3 but no MailChimp message generated');
+			}
+			
+			//	log_message('debug', 'Pending form final response: ' . $responseMessage);
+			
+			echo $responseMessage;
 			
 			exit();
 			
@@ -382,7 +472,11 @@ class Pending extends BaseController
 			
 			
 			
-			if(  $_SESSION['mloggedin'] && in_array($_SESSION['mloggedin'],[$the_office_assistant,$the_office_director]) && $baptist['inactive']==6 ){
+			// Check if running on local server
+			if(isLocalServer()){
+				// Always show admin approval on local server
+				$data['showAdminApproval'] = true;
+			}elseif(  $_SESSION['mloggedin'] && in_array($_SESSION['mloggedin'],[$the_office_assistant,$the_office_director,$the_com_director]) && $baptist['inactive']==6 ){
 				
 				$data['showAdminApproval'] = true;
 				

@@ -284,8 +284,10 @@ function sendEmail($to,$subject,$message,$headers=[]){
 
 function Sendbatchemails($vars)
 {
-
-
+	// Don't send emails when running locally on localhost
+	if(isLocalServer()) {
+		return 1;
+	}
 
 	if(isset($vars['template'])&&$vars['template']){
 		
@@ -378,7 +380,9 @@ function Sendbatchemails($vars)
 function sendtomandrill($subject,$message,$email,$cc=0)
 {
 	
-
+	if(isLocalServer()) {
+		return 1;
+	}
 	
 	$myEmailItem = [];	
 	$myEmailItem['from'] =  ["address" => "no-reply@crosspointchurch.cc","name"=>"Crosspoint Church"];

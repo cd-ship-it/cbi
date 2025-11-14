@@ -598,6 +598,82 @@ class Baptist extends BaseController
 		]);
 	}
 
+	public function syncMailchimp()
+	{
+		$bid = $this->request->getPost('bid');
+		
+		if(!$bid) {
+			return $this->response->setJSON(['success' => false, 'message' => 'BID required']);
+		}
+		
+		$modelProfilesModel = new ProfilesModel();
+		$user = $modelProfilesModel->getBaptistbyId($bid);
+		
+		if(!$user) {
+			return $this->response->setJSON(['success' => false, 'message' => 'User not found']);
+		}
+		
+		$email = isset($user['email']) ? $user['email'] : '';
+		$fName = isset($user['fName']) ? $user['fName'] : '';
+		$lName = isset($user['lName']) ? $user['lName'] : '';
+		
+		if(!$email || !$fName || !$lName) {
+			return $this->response->setJSON(['success' => false, 'message' => 'Missing required fields: email, first name, or last name']);
+		}
+		
+		try {
+			$mailchimpService = new MailchimpService();
+			
+			// Check if member exists in MailChimp
+			$mcMember = $mailchimpService->getMemberByEmail($email);
+			
+			if($mcMember) {
+				// Member exists, update email (and other info)
+				$mcResult = $mailchimpService->createOrUpdateMember($email, $fName, $lName, 'subscribed');
+				
+				if($mcResult['success']) {
+					// Update onMailchimp column in database
+					$modelProfilesModel->update($bid, ['onMailchimp' => 'subscribed']);
+					
+					// Get updated user data
+					$updatedUser = $modelProfilesModel->getBaptistbyId($bid);
+					
+					return $this->response->setJSON([
+						'success' => true,
+						'message' => 'MailChimp: Member updated successfully',
+						'onMailchimp' => isset($updatedUser['onMailchimp']) ? $updatedUser['onMailchimp'] : null
+					]);
+				} else {
+					$errorMsg = $mcResult['message'] ?? 'Unknown error';
+					return $this->response->setJSON(['success' => false, 'message' => 'MailChimp update failed: ' . $errorMsg]);
+				}
+			} else {
+				// Member doesn't exist, create new contact
+				$mcResult = $mailchimpService->createOrUpdateMember($email, $fName, $lName, 'subscribed');
+				
+				if($mcResult['success']) {
+					// Update onMailchimp column in database
+					$modelProfilesModel->update($bid, ['onMailchimp' => 'subscribed']);
+					
+					// Get updated user data
+					$updatedUser = $modelProfilesModel->getBaptistbyId($bid);
+					
+					return $this->response->setJSON([
+						'success' => true,
+						'message' => 'MailChimp: New contact created and subscribed',
+						'onMailchimp' => isset($updatedUser['onMailchimp']) ? $updatedUser['onMailchimp'] : null
+					]);
+				} else {
+					$errorMsg = $mcResult['message'] ?? 'Unknown error';
+					return $this->response->setJSON(['success' => false, 'message' => 'MailChimp creation failed: ' . $errorMsg]);
+				}
+			}
+		} catch(\Exception $e) {
+			log_message('error', 'MailChimp sync exception for bid ' . $bid . ': ' . $e->getMessage());
+			return $this->response->setJSON(['success' => false, 'message' => 'MailChimp error: ' . $e->getMessage()]);
+		}
+	}
+
 	//--------------------------------------------------------------------
 
 }
