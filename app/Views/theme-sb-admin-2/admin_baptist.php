@@ -432,7 +432,7 @@ function mode0html($bid,$curriculumCodes,$results){
 		<option <?= ($bid && $user['inactive']==3?'selected':'') ;?> value="3">Member</option>
 		</select>
 		</p>		
-		<p>Membership Date: <input  class="form-control dateInput"  value="<?= (isset($user['membershipDate'])&&$user['membershipDate']?date("m/d/Y",$user['membershipDate']):''); ?>" name="membershipDate" id="membershipDate" required title="Membership Date" /></p>
+		<p>Membership Date: <input  class="form-control dateInput"  value="<?= (isset($user['membershipDate'])&&$user['membershipDate']?date("m/d/Y",$user['membershipDate']):''); ?>" name="membershipDate" id="membershipDate" title="Membership Date" /></p>
 		
 		<p>Mailchimp Status: <input class="form-control" value="<?= (isset($user['onMailchimp'])&&$user['onMailchimp']?ucfirst($user['onMailchimp']):'Not set'); ?>" name="onMailchimp" id="onMailchimp" readonly disabled style="background-color: #e9ecef; cursor: not-allowed;" /></p>
 	<?php endif; ?>
