@@ -37,6 +37,7 @@ class AutoLogin extends BaseController
             $db = db_connect();
             $builder = $db->table('baptism');
             $builder->select('id as bid');
+            //$builder->where('email', 'aa@crosspointchurchsv.org');
             $builder->where('email', 'cd@crosspointchurchsv.org');
             $baptismRecord = $builder->get()->getRowArray();
             

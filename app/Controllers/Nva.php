@@ -507,7 +507,8 @@ class Nva extends BaseController
 
 		$data['main_content'] =  view('nva_table',$data);	
 		
-		$data['footer'] = '<script>	
+		$data['footer'] = '<script type="text/javascript" src="'.base_url('assets/rome/rome.min.js').'"></script>
+<script>	
 		
 $( document ).on( "change", "#filter_case_owner", function() {
 	
@@ -539,6 +540,101 @@ $( document ).on( "change", "#filter_peferred_lg", function() {
 	url2 = url1.replace("filter", val);	
 	window.location.replace(url2);
 	
+});
+
+// Rome date picker for date range
+$(document).ready(function() {
+	if(typeof rome !== "undefined"){
+		var startDatePicker = null;
+		var endDatePicker = null;
+		var dateChangeTimer = null;
+		
+		// Initialize start date picker
+		var startEl = document.getElementById("date_range_start");
+		if(startEl) {
+			startDatePicker = rome(startEl, {
+				time: false,
+				inputFormat: "MM/DD/YYYY",
+				outputFormat: "MM/DD/YYYY"
+			});
+			
+			startDatePicker.on("ready", function() {
+				startDatePicker.dateValidator(function(date) {
+					if(endDatePicker && endDatePicker.getDate()){
+						return date <= endDatePicker.getDate();
+					}
+					return true;
+				});
+			});
+			
+			startDatePicker.on("data", function(value) {
+				if(value && dateChangeTimer) clearTimeout(dateChangeTimer);
+				if(value) {
+					dateChangeTimer = setTimeout(function() {
+						updateDateRange();
+					}, 500);
+				}
+			});
+		}
+		
+		// Initialize end date picker
+		var endEl = document.getElementById("date_range_end");
+		if(endEl) {
+			endDatePicker = rome(endEl, {
+				time: false,
+				inputFormat: "MM/DD/YYYY",
+				outputFormat: "MM/DD/YYYY"
+			});
+			
+			endDatePicker.on("ready", function() {
+				endDatePicker.dateValidator(function(date) {
+					if(startDatePicker && startDatePicker.getDate()){
+						return date >= startDatePicker.getDate();
+					}
+					return true;
+				});
+			});
+			
+			endDatePicker.on("data", function(value) {
+				if(value && dateChangeTimer) clearTimeout(dateChangeTimer);
+				if(value) {
+					dateChangeTimer = setTimeout(function() {
+						updateDateRange();
+					}, 500);
+				}
+			});
+		}
+		
+		// Function to update URL with new date range
+		function updateDateRange() {
+			var startDate = $("#date_range_start").val();
+			var endDate = $("#date_range_end").val();
+			
+			if(!startDate || !endDate) {
+				return; // Don\'t update if both dates aren\'t set
+			}
+			
+			// Convert MM/DD/YYYY to YYYY-MM-DD
+			function convertToUrlFormat(dateStr) {
+				if(!dateStr) return "0";
+				var parts = dateStr.split("/");
+				if(parts.length === 3) {
+					return parts[2] + "-" + parts[0] + "-" + parts[1];
+				}
+				return "0";
+			}
+			
+			var startUrl = convertToUrlFormat(startDate);
+			var endUrl = convertToUrlFormat(endDate);
+			
+			// Build new URL with updated dates
+			var baseUrl = "'.base_url('nva/table/'.$uid.'/'.$stage_id).'";
+			var newUrl = baseUrl + "/" + startUrl + "/" + endUrl + "/'.$campus.'/'.$peferred_lg.'";
+			
+			// Update URL
+			window.location.replace(newUrl);
+		}
+	}
 });
 
 </script>';

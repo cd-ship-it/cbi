@@ -41,7 +41,7 @@ class Home extends BaseController
 			
 			$db = db_connect();
 			$builder = $db->table('baptism');
-			$builder->select('id, CONCAT(fName, " ", COALESCE(mName, ""), " ", lName) as name, email, hPhone, mPhone');
+			$builder->select('id, CONCAT(fName, " ", COALESCE(mName, ""), " ", lName) as name, email, inactive');
 			
 			// Only include records where dup IS NULL
 			$builder->where('dup IS NULL');
@@ -53,22 +53,74 @@ class Home extends BaseController
 			// Check if query is a number (phone)
 			elseif(preg_match('/^[\d\s\-\(\)]+$/', $query)){
 				$phoneQuery = preg_replace('/[\s\-\(\)]/', '', $query);
-				$builder->like('mPhone', $phoneQuery);
+				$builder->groupStart()
+					->like('mPhone', $phoneQuery)
+					->orLike('hPhone', $phoneQuery)
+					->groupEnd();
 			}
 			// Otherwise search name fields
 			else {
-				// Use LIKE for all name searches (works reliably)
-				// Full-text indexes can be added later for optimization if needed
-				$builder->groupStart()
-					->like('fName', $query)
-					->orLike('mName', $query)
-					->orLike('lName', $query)
-					->orLike('cName', $query)
-					->groupEnd();
+				// Normalize query: trim and normalize spaces
+				$query = trim($query);
+				$query = preg_replace('/\s+/', ' ', $query); // Normalize multiple spaces to single space
+				$words = preg_split('/\s+/', $query);
+				
+				$builder->groupStart();
+				
+				// If multiple words, try exact match on first name + last name
+				if(count($words) >= 2){
+					$escapedQuery = $db->escape($query);
+					// Exact match on CONCAT(fName, " ", lName)
+					$builder->where("CONCAT(fName, ' ', lName) = {$escapedQuery}", null, false);
+					
+					// Also try reverse order
+					$reversedQuery = trim(end($words) . ' ' . $words[0]);
+					$escapedReversedQuery = $db->escape($reversedQuery);
+					$builder->orWhere("CONCAT(fName, ' ', lName) = {$escapedReversedQuery}", null, false);
+					
+					// Match first word as fName and last word as lName
+					$firstWord = $words[0];
+					$lastWord = end($words);
+					if($firstWord !== $lastWord){
+						$builder->groupStart()
+							->like('fName', $firstWord)
+							->like('lName', $lastWord)
+							->groupEnd();
+						
+						// Also match in reverse order
+						$builder->groupStart()
+							->like('fName', $lastWord)
+							->like('lName', $firstWord)
+							->groupEnd();
+					}
+				} else {
+					// Single word search - search across all name fields
+					$builder->like('fName', $query)
+						->orLike('mName', $query)
+						->orLike('lName', $query)
+						->orLike('cName', $query);
+				}
+				
+				$builder->groupEnd();
 			}
+			
+			// Order by exact match first, then alphabetically
+			if(isset($escapedQuery)){
+				$builder->orderBy("CONCAT(fName, ' ', lName) = {$escapedQuery} DESC", '', false);
+				if(isset($escapedReversedQuery)){
+					$builder->orderBy("CONCAT(fName, ' ', lName) = {$escapedReversedQuery} DESC", '', false);
+				}
+			}
+			$builder->orderBy('fName', 'ASC');
+			$builder->orderBy('lName', 'ASC');
 			
 			$builder->limit(20);
 			$results = $builder->get()->getResultArray();
+			
+			// Add inactive status text to each result
+			foreach($results as &$result){
+				$result['inactiveStatus'] = getInactiveStatusText($result['inactive']);
+			}
 			
 			echo json_encode($results);
 			exit();

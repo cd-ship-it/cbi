@@ -74,66 +74,34 @@ class DevLogin extends BaseController
         
         if ($action === 'logout') {
             $session->destroy();
-            return redirect()->to(base_url('DevLogin'));
+            return redirect()->to(base_url('dev-login'));
         }
         
-        // If form submitted
+        // If form submitted via POST
         if ($this->request->getMethod() === 'post') {
             $bid = $this->request->getPost('bid');
             
+            // Debug logging
+            log_message('debug', 'DevLogin POST received. BID: ' . ($bid ?? 'null'));
+            
             if ($bid) {
-                try {
-                    // Get member data
-                    $member = $modelMembers->db_m_member($bid);
-                    
-                    if ($member) {
-                        // Get permissions
-                        $permissionSet = $modelPermission->getUserPermissionNames($bid);
-                        
-                        // Set session data (same as OAuth does)
-                        $newdata = [
-                            'mloggedin'  => $member['bid'],
-                            'mloggedinName' => ucwords($member['name']),
-                            'email' => $member['email'],
-                            'capabilities' => $permissionSet,
-                            'dsfPicture' => '',
-                            'xadmin' => $member['admin']
-                        ];
-                        
-                        $session->set($newdata);
-                        
-                        // Update last activity
-                        $modelMembers->lastactivityUpdate($member['bid']);
-                        
-                        // Redirect to appropriate page
-                        $redirect = $this->request->getGet('redirect');
-                        if ($redirect) {
-                            return redirect()->to($redirect);
-                        }
-                        
-                        // Redirect to dev-login to show success
-                        return redirect()->to(base_url('dev-login') . '?success=1');
-                    } else {
-                        // Member not found
-                        $error = 'Member not found (BID: ' . $bid . ')';
-                    }
-                } catch (\Exception $e) {
-                    $error = 'Error: ' . $e->getMessage();
-                }
+                return $this->loginAsUser($bid, $modelMembers, $modelPermission, $session);
             } else {
                 $error = 'No user selected';
             }
         }
         
-        // Check for success message
+        // Check for success/error messages
         $success = $this->request->getGet('success');
+        $error = $this->request->getGet('error');
         
-        // Get all members for dropdown
+        // Get all members for dropdown - only show active baptism records (inactive = 3)
         $db = db_connect();
         $builder = $db->table('members');
         $builder->join('baptism', 'members.bid = baptism.id', 'inner');
         $builder->select('members.bid, CONCAT(baptism.fName," ",baptism.lName) as name, members.admin, baptism.email');
         $builder->where('members.status', 1);
+        $builder->where('baptism.inactive', 3);
         $builder->orderBy('members.admin', 'DESC');
         $builder->orderBy('baptism.fName', 'ASC');
         $members = $builder->get()->getResultArray();
@@ -146,6 +114,51 @@ class DevLogin extends BaseController
         
         // Display form
         echo $this->renderLoginForm($members, $currentUser, $error ?? null, $success ?? null);
+    }
+    
+    /**
+     * Login as a specific user
+     */
+    private function loginAsUser($bid, $modelMembers, $modelPermission, $session)
+    {
+        try {
+            // Get member data
+            $member = $modelMembers->db_m_member($bid);
+            
+            if ($member) {
+                // Get permissions
+                $permissionSet = $modelPermission->getUserPermissionNames($bid);
+                
+                // Set session data (same as OAuth does)
+                $newdata = [
+                    'mloggedin'  => $member['bid'],
+                    'mloggedinName' => ucwords($member['name']),
+                    'email' => $member['email'],
+                    'capabilities' => $permissionSet,
+                    'dsfPicture' => '',
+                    'xadmin' => $member['admin']
+                ];
+                
+                $session->set($newdata);
+                
+                // Update last activity
+                $modelMembers->lastactivityUpdate($member['bid']);
+                
+                // Redirect to appropriate page
+                $redirect = $this->request->getGet('redirect');
+                if ($redirect) {
+                    return redirect()->to($redirect);
+                }
+                
+                // Redirect to dev-login to show success
+                return redirect()->to(base_url('dev-login') . '?success=1');
+            } else {
+                // Member not found
+                return redirect()->to(base_url('dev-login') . '?error=' . urlencode('Member not found (BID: ' . $bid . ')'));
+            }
+        } catch (\Exception $e) {
+            return redirect()->to(base_url('dev-login') . '?error=' . urlencode('Error: ' . $e->getMessage()));
+        }
     }
     
     private function renderLoginForm($members, $currentUser, $error = null, $success = null)
@@ -300,7 +313,7 @@ class DevLogin extends BaseController
                             <a href="<?= base_url('DevLogin/debug') ?>" style="color: #721c24; text-decoration: underline;">View Debug Info</a>
                         </div>
                     <?php else: ?>
-                        <form method="post" id="loginForm">
+                        <form method="post" id="loginForm" action="<?= base_url('cbi/dev-login') ?>">
                             <div class="form-group">
                                 <label for="bid">Select User to Login As:</label>
                                 <select name="bid" id="bid" required>
@@ -314,8 +327,13 @@ class DevLogin extends BaseController
                                     <?php endforeach; ?>
                                 </select>
                             </div>
-                            <button type="submit">Login as Selected User</button>
+                            <button type="submit" id="submitBtn">Login as Selected User</button>
+                            <div id="debugInfo" style="margin-top: 10px; font-size: 12px; color: #666; min-height: 20px; padding: 5px; background: #f0f0f0; border-radius: 3px;"></div>
                         </form>
+                        <div style="margin-top: 10px; padding: 10px; background: #e7f3ff; border-radius: 4px; font-size: 12px;">
+                            <strong>Instructions:</strong> Select a user from the dropdown above. The form should auto-submit when you select a user.<br>
+                            <strong>Debug:</strong> Check the browser console (F12) for detailed logs.
+                        </div>
                     <?php endif; ?>
                     
                     <div class="links">
@@ -333,20 +351,78 @@ class DevLogin extends BaseController
             </div>
             
             <script>
-                // Debug: Check form submission
+                // Auto-submit when user selects from dropdown
                 document.addEventListener('DOMContentLoaded', function() {
-                    const form = document.querySelector('form');
-                    if (form) {
+                    const select = document.getElementById('bid');
+                    const form = document.getElementById('loginForm');
+                    const debugInfo = document.getElementById('debugInfo');
+                    const submitBtn = document.getElementById('submitBtn');
+                    
+                    function updateDebug(msg) {
+                        if (debugInfo) {
+                            debugInfo.innerHTML = 'Debug: ' + msg;
+                            console.log('DevLogin Debug:', msg);
+                        }
+                    }
+                    
+                    if (select && form) {
+                        updateDebug('Form and select elements found. Waiting for selection...');
+                        console.log('Form action URL:', form.action);
+                        console.log('Form method:', form.method);
+                        console.log('Select element:', select);
+                        
+                        // Auto-submit when a user is selected
+                        select.addEventListener('change', function(e) {
+                            console.log('CHANGE EVENT FIRED! Value:', this.value);
+                            updateDebug('Change event fired! Value: ' + this.value);
+                            
+                            if (this.value) {
+                                updateDebug('User selected: ' + this.value + ' - Submitting form...');
+                                console.log('Auto-submitting with BID:', this.value);
+                                console.log('Form action:', form.action);
+                                console.log('Form method:', form.method);
+                                
+                                // Show loading state
+                                if (submitBtn) {
+                                    submitBtn.disabled = true;
+                                    submitBtn.textContent = 'Logging in...';
+                                }
+                                
+                                // Small delay to ensure UI updates
+                                setTimeout(function() {
+                                    console.log('About to submit form...');
+                                    form.submit();
+                                }, 100);
+                            } else {
+                                updateDebug('No user selected (empty value)');
+                            }
+                        });
+                        
+                        // Also test click event
+                        select.addEventListener('click', function() {
+                            console.log('SELECT CLICKED, current value:', this.value);
+                        });
+                        
+                        // Also handle manual submit button click
                         form.addEventListener('submit', function(e) {
-                            const select = document.getElementById('bid');
                             if (!select || !select.value) {
                                 alert('Please select a user first!');
                                 e.preventDefault();
                                 return false;
                             }
+                            updateDebug('Form submitting with BID: ' + select.value);
                             console.log('Form submitting with BID:', select.value);
-                            // Form will submit normally
+                            console.log('Form action:', form.action);
+                            
+                            // Show loading state
+                            if (submitBtn) {
+                                submitBtn.disabled = true;
+                                submitBtn.textContent = 'Logging in...';
+                            }
                         });
+                    } else {
+                        updateDebug('ERROR: Form or select element not found!');
+                        console.error('DevLogin: Form or select element not found');
                     }
                 });
             </script>

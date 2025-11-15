@@ -539,7 +539,7 @@ $('#baptismSearchInput').on('input', function(){
 					data.forEach(function(item){
 						var name = item.name || 'Unknown';
 						var email = item.email || '';
-						var phone = item.hPhone || item.mPhone || '';
+						var inactiveStatus = item.inactiveStatus || '';
 						
 						var li = $('<li class="list-group-item"></li>');
 						var link = $('<a></a>')
@@ -549,10 +549,11 @@ $('#baptismSearchInput').on('input', function(){
 						li.append(link);
 						
 						if(email){
-							li.append($('<span class="text-muted ml-2"></span>').text('(' + email + ')'));
-						}
-						if(phone){
-							li.append($('<span class="text-muted ml-2"></span>').text(' - ' + phone));
+							var emailText = '(' + email + ')';
+							if(inactiveStatus){
+								emailText += ' - ' + inactiveStatus;
+							}
+							li.append($('<span class="text-muted ml-2"></span>').text(emailText));
 						}
 						
 						$('#baptismResultsList').append(li);

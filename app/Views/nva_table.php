@@ -93,12 +93,32 @@
                     <!-- DataTales Example -->
                     <div class="card shadow mb-4">
                         <div class="card-header py-3">
-							<?php if(isset($dateRange) && $dateRange): ?>
-								<h6 class="m-0 font-weight-bold text-primary">New Visitors</h6>
-								<small class="text-muted">Date Range: <?= $dateRange['startFormatted']; ?> - <?= $dateRange['endFormatted']; ?></small>
-							<?php else: ?>
-								<h6 class="m-0 font-weight-bold text-primary">New Visitors</h6>
-							<?php endif; ?>
+							<div class="d-flex justify-content-between align-items-center flex-wrap">
+								<div class="d-flex align-items-center">
+									<h6 class="m-0 font-weight-bold text-primary">New Visitors</h6>
+									<?php if(isset($campus) && $campus): ?>
+										<span class="ml-2 text-muted">- <?= ucwords($campus); ?></span>
+									<?php endif; ?>
+									<?php if(isset($dateRange) && $dateRange): ?>
+										<span class="ml-2 text-muted small">(<?= $dateRange['startFormatted']; ?> - <?= $dateRange['endFormatted']; ?>)</span>
+									<?php endif; ?>
+								</div>
+								<?php if(isset($dateRange) && $dateRange): ?>
+									<div class="d-flex align-items-center">
+										<label class="mb-0 text-muted small mr-2">Date Range:</label>
+										<input type="text" id="date_range_start" class="form-control form-control-sm mr-1" style="width: 110px;" value="<?= $dateRange['startInput']; ?>" placeholder="Start Date">
+										<span class="text-muted mr-1">-</span>
+										<input type="text" id="date_range_end" class="form-control form-control-sm" style="width: 110px;" value="<?= $dateRange['endInput']; ?>" placeholder="End Date">
+									</div>
+								<?php else: ?>
+									<div class="d-flex align-items-center">
+										<label class="mb-0 text-muted small mr-2">Date Range:</label>
+										<input type="text" id="date_range_start" class="form-control form-control-sm mr-1" style="width: 110px;" placeholder="Start Date">
+										<span class="text-muted mr-1">-</span>
+										<input type="text" id="date_range_end" class="form-control form-control-sm" style="width: 110px;" placeholder="End Date">
+									</div>
+								<?php endif; ?>
+							</div>
 						</div>
                         <div class="card-body">
 						
@@ -178,6 +198,8 @@
                                         <tr>
                                             <th>Visited</th>
                                             <td>Name</td>
+                                            <td>Phone</td>
+                                            <td>Email</td>
                                             <td>Case Owner</td>
                                             <td>Status</td>
                                             <td>Language Preference</td>
@@ -196,6 +218,8 @@
                                         <tr>
                                             <th><?= ($row['visited']); ?></th>
                                             <td><?= ($row['name']); ?></td>
+                                            <td><?= isset($row['phone']) && $row['phone'] ? htmlspecialchars($row['phone']) : '-'; ?></td>
+                                            <td><?= isset($row['email']) && $row['email'] ? htmlspecialchars($row['email']) : '-'; ?></td>
                                             <td><?= ($row['case_owner_name']); ?></td>
                                             <td><?= ($row['stage']); ?></td>
                                             <td><?= ($row['preferred_language']); ?></td>

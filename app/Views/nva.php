@@ -22,6 +22,9 @@
 	
 	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.9.1/font/bootstrap-icons.css">
 	
+	<!-- Rome date picker CSS -->
+	<link rel="stylesheet" href="<?= base_url('assets/rome/rome.min.css'); ?>" type="text/css"/>
+	
     <style>
 	
 .ajaxDiv{position: fixed; width: 300px; background: #fff; height: 100%; top: 0; right: 0; padding: 20px; box-shadow: 11px -4px 12px 20px #000;}
@@ -130,6 +133,24 @@
                     </div>
                 </div>
             </li>
+			
+			<?php if($webConfig->checkPermissionByDes(['dashboard_view'])): ?>
+            <!-- Nav Item - Edit Campus Pastors -->
+            <li class="nav-item">
+                <a class="nav-link" href="<?=base_url('cbi/nva'); ?>">
+                    <i class="fas fa-fw fa-user-edit"></i>
+                    <span>Edit Campus Pastors</span>
+                </a>
+            </li>
+			
+            <!-- Nav Item - Edit default case owner -->
+            <li class="nav-item">
+                <a class="nav-link" href="<?=base_url('cbi/nva/caseowner'); ?>">
+                    <i class="fas fa-fw fa-user-tag"></i>
+                    <span>Edit default case owner</span>
+                </a>
+            </li>
+			<?php endif; ?>
 			
 <?php 	endif;  ?>
 
@@ -628,9 +649,28 @@ $(document).ready(function() {
     var currentUrl = window.location.href;
     var currentPath = window.location.pathname;
     
+    // Check if URL contains cbi/nva/caseowner (Edit default case owner)
+    if (currentPath.match(/\/cbi\/nva\/caseowner/)) {
+        // Collapse "Your action items"
+        $('#collapsePages').removeClass('show');
+        
+        // Add active class to Edit default case owner nav item
+        $('a[href*="cbi/nva/caseowner"]').closest('li.nav-item').addClass('active');
+        $('a[href*="cbi/nva/caseowner"]').addClass('active');
+    }
+    // Check if URL contains cbi/nva (Edit Campus Pastors)
+    else if (currentPath.match(/\/cbi\/nva$/)) {
+        // Collapse "Your action items"
+        $('#collapsePages').removeClass('show');
+        // Don't expand "Explore Campuses" since Edit Campus Pastors is separate
+        
+        // Add active class to Edit Campus Pastors nav item
+        $('a[href*="cbi/nva"]').not('a[href*="caseowner"]').closest('li.nav-item').addClass('active');
+        $('a[href*="cbi/nva"]').not('a[href*="caseowner"]').addClass('active');
+    }
     // Check if URL contains nva/table/0 (Explore Campuses section)
     // This matches URLs like: /nva/table/0 or /nva/table/0/0/0/0/tracy
-    if (currentPath.match(/\/nva\/table\/0/)) {
+    else if (currentPath.match(/\/nva\/table\/0/)) {
         // Collapse "Your action items"
         $('#collapsePages').removeClass('show');
         // Expand "Explore Campuses"

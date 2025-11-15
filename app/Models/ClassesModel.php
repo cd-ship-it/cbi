@@ -615,6 +615,56 @@ public function importDataFrom($from_id,$to_id){
 		
 }
 
+public function getPaginatedBaptismList($page = 1, $perPage = 20, $sortColumn = 'id', $sortDirection = 'DESC'){
+	
+	$db = db_connect();
+	
+	// Ensure valid page number
+	if($page < 1) $page = 1;
+	
+	// Validate and map sort column to database column (prevent SQL injection)
+	$allowedColumns = [
+		'id' => 'a.id',
+		'name' => 'CONCAT(a.fName, a.mName, a.lName)',
+		'email' => 'a.email',
+		'membershipDate' => 'a.membershipDate',
+		'site' => 'a.site',
+		'inactive' => 'a.inactive',
+		'onMailchimp' => 'a.onMailchimp'
+	];
+	
+	$dbColumn = isset($allowedColumns[$sortColumn]) ? $allowedColumns[$sortColumn] : 'a.id';
+	$sortDirection = strtoupper($sortDirection) === 'ASC' ? 'ASC' : 'DESC';
+	
+	$offset = ($page - 1) * $perPage;
+	
+	// Get total count (matching the WHERE clause from results query)
+	// Optimized: Use NOT EXISTS to avoid full table scan - only count rows that don't have admin=9
+	$countSql = "SELECT COUNT(*) as total FROM baptism a";
+	$countQuery = $db->query($countSql);
+	$totalRecords = $countQuery->getRow()->total;
+	$totalPages = ceil($totalRecords / $perPage);
+	
+	// Get paginated results
+	// Optimized: Filter with NOT EXISTS first, then join to get members data
+	$sql = "SELECT a.id, a.fName, a.mName, a.lName, a.email, a.membershipDate, a.site, a.onMailchimp, a.inactive
+			FROM baptism a 
+			WHERE 1=1
+			ORDER BY {$dbColumn} {$sortDirection} 
+			LIMIT {$perPage} OFFSET {$offset}";
+	$query = $db->query($sql);
+	$results = $query->getResultArray();
+	
+	return [
+		'results' => $results,
+		'totalRecords' => $totalRecords,
+		'totalPages' => $totalPages,
+		'currentPage' => $page,
+		'sortColumn' => $sortColumn,
+		'sortDirection' => $sortDirection
+	];
+}
+
 
 
 

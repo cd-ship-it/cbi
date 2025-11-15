@@ -15,7 +15,7 @@ function member_change_log($data){
 		
 		$builder->insert($data);
 	
-	
+		
 }
 
 function userUpdate($bid,$data,$by){

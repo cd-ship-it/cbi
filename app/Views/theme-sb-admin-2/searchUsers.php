@@ -62,7 +62,8 @@
 							<p class="bts">
 							<button  class="btn btn-secondary " type="reset" id="btReset" value="Reset">Reset</button> | 
 							<button class="btn btn-primary " type="button" onclick="search_submit()" id="btFilter">Search</button> | 
-							<button  class="btn btn-info " type="button" onclick="search_submit(1)" id="btAll">Display all</button>
+							<button  class="btn btn-info " type="button" onclick="search_submit(1)" id="btAll">Display all</button> | 
+							<a href="<?= base_url('xAdmin/search'); ?>" class="btn btn-warning">Newest to oldest</a>
 							</p>
 						
 

@@ -436,7 +436,16 @@ function mode0html($bid,$curriculumCodes,$results){
 		
 		<p>Mailchimp Status: 
 			<input class="form-control d-inline-block" value="<?= (isset($user['onMailchimp'])&&$user['onMailchimp']?ucfirst($user['onMailchimp']):'Not set'); ?>" name="onMailchimp" id="onMailchimp" readonly disabled style="background-color: #e9ecef; cursor: not-allowed; width: auto; min-width: 150px;" />
-			<button type="button" class="btn btn-sm ml-2" id="syncMailchimpBtn" onclick="syncWithMailchimp(<?= $bid; ?>)" style="background-color: white; color: #007bff; border: 1px solid #007bff;">Sync with MailChimp</button>
+			<?php 
+				$shouldDisableSync = false;
+				if(isset($user['inactive']) && $user['inactive'] == 3) {
+					$mailchimpStatus = isset($user['onMailchimp']) ? strtolower($user['onMailchimp']) : '';
+					if($mailchimpStatus == 'unsubscribed' || $mailchimpStatus == 'archived') {
+						$shouldDisableSync = true;
+					}
+				}
+			?>
+			<button type="button" class="btn btn-sm ml-2" id="syncMailchimpBtn" onclick="syncWithMailchimp(<?= $bid; ?>)" <?= $shouldDisableSync ? 'disabled' : ''; ?> style="<?= $shouldDisableSync ? 'background-color: #e9ecef; color: #6c757d; border: 1px solid #ced4da; cursor: not-allowed;' : 'background-color: white; color: #007bff; border: 1px solid #007bff;'; ?>">Sync with MailChimp</button>
 		</p>
 	<?php endif; ?>
 		

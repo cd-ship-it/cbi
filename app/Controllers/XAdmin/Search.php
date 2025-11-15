@@ -10,6 +10,8 @@ use App\Models\MinistryModel;
 
 class Search extends BaseController
 {
+	// Configurable page limit for pagination
+	private $pageLimit = 40;
 	
 	
 	public function index($mode=0,$filter='')
@@ -368,29 +370,19 @@ class Search extends BaseController
 			
 			
 		}else{
-			// Default: Show latest 20 records from baptism table ordered by id desc with pagination
-			$db = db_connect();
-			
+			// Default: Show latest records from baptism table ordered by id desc with pagination
 			// Get page number from query parameter, default to 1
 			$page = (int)($this->request->getGet('page') ?: 1);
-			if($page < 1) $page = 1;
 			
-			$perPage = 20;
-			$offset = ($page - 1) * $perPage;
+			// Get sort parameters from query string
+			$sortColumn = $this->request->getGet('sort') ?: 'id';
+			$sortDirection = $this->request->getGet('dir') ?: 'DESC';
 			
-			// Get total count
-			$countSql = "SELECT COUNT(*) as total from baptism a left JOIN members m on a.id = m.bid WHERE (m.admin != 9 or m.admin is null)";
-			$countQuery = $db->query($countSql);
-			$totalRecords = $countQuery->getRow()->total;
-			$totalPages = ceil($totalRecords / $perPage);
-			
-			// Get paginated results
-			$sql = "SELECT a.id, a.fName, a.mName, a.lName, a.email, a.baptizedDate, a.site, a.onMailchimp, a.inactive, m.status, m.admin from baptism a left JOIN members m on a.id = m.bid WHERE (m.admin != 9 or m.admin is null) ORDER BY a.id DESC LIMIT {$perPage} OFFSET {$offset}";
-			$query = $db->query($sql);
-			$results = $query->getResultArray();
+			// Get paginated results from model
+			$paginationData = $modelClasses->getPaginatedBaptismList($page, $this->pageLimit, $sortColumn, $sortDirection);
 			
 			// Use custom default display with specific columns and pagination
-			$data['returnHtml'] = $this->defaultHtml($results, $page, $totalPages, $totalRecords);
+			$data['returnHtml'] = $this->defaultHtml($paginationData['results'], $paginationData['currentPage'], $paginationData['totalPages'], $paginationData['totalRecords'], $paginationData['sortColumn'], $paginationData['sortDirection']);
 		}
 		
 		
@@ -525,7 +517,7 @@ private function mode1html($links,$results){
 			if($item['status']=== '1'){
 				$icon .= ' signin';
 			}else{
-				$icon .= ' unsign';
+				$icon .= ' signin';
 			} 	
 			
 			$html .=  '<tr class="list '.$icon.'">';
@@ -642,32 +634,58 @@ private function mode2html($links,$results){
 
 }
 
-private function defaultHtml($results, $currentPage = 1, $totalPages = 1, $totalRecords = 0){
+private function defaultHtml($results, $currentPage = 1, $totalPages = 1, $totalRecords = 0, $sortColumn = 'id', $sortDirection = 'DESC'){
+	helper('status');
 	$html='';
 	
+	// Map column display names to sort keys
+	$columnSortMap = [
+		'Name' => 'name',
+		'Email' => 'email',
+		'Membership Date' => 'membershipDate',
+		'Site' => 'site',
+		'Membership Status' => 'inactive',
+		'Mailchimp Status' => 'onMailchimp'
+	];
+	
+	$baseUrl = base_url('xAdmin/search');
+	
 	if($results){
-		$startRecord = ($currentPage - 1) * 20 + 1;
-		$endRecord = min($currentPage * 20, $totalRecords);
-		$html .= '<p class="x-results"><span>Showing '.$startRecord.'-'.$endRecord.' of '.$totalRecords.' results</span></p>';
+		$startRecord = ($currentPage - 1) * $this->pageLimit + 1;
+		$endRecord = min($currentPage * $this->pageLimit, $totalRecords);
+		$html .= '<p class="x-results"><span>Showing '.$startRecord.'-'.$endRecord.' of '.$totalRecords.' results. From newest to oldest</span></p>';
 		
-		$html .= '<table class="table sortable" id="results"><thead>';
+		$html .= '<table class="table" id="results"><thead>';
 		
-		$columns = ['Name','Email','Date of Baptism','Site','Membership Status','Mailchimp Status'];
+		$columns = ['Name','Email','Membership Date','Site','Membership Status','Mailchimp Status'];
 		
 		$html .=  '<tr class="title">';
 		
 		foreach($columns as $c){
-			$html .=  '<th class="c'.md5('mit'.$c).'">'.$c.'</th>';		
+			$sortKey = isset($columnSortMap[$c]) ? $columnSortMap[$c] : null;
+			$isCurrentSort = ($sortKey && $sortKey === $sortColumn);
+			$newDirection = ($isCurrentSort && $sortDirection === 'ASC') ? 'DESC' : 'ASC';
+			
+			if($sortKey){
+				$sortUrl = $baseUrl . '?sort=' . $sortKey . '&dir=' . $newDirection;
+				$sortIndicator = '';
+				if($isCurrentSort){
+					$sortIndicator = $sortDirection === 'ASC' ? ' ↑' : ' ↓';
+				}
+				$html .=  '<th class="c'.md5('mit'.$c).'" style="cursor: pointer;"><a href="'.$sortUrl.'" style="text-decoration: none; color: inherit;">'.$c.$sortIndicator.'</a></th>';
+			}else{
+				$html .=  '<th class="c'.md5('mit'.$c).'">'.$c.'</th>';
+			}
 		}
 		$html .=  '</tr> </thead> <tbody>';
 
 		foreach($results as $item){
 			$icon = '';
-			if($item['status']=== '1'){
-				$icon .= ' signin';
-			}else{
-				$icon .= ' unsign';
-			} 	
+			// if($item['status']=== '1'){
+			// 	$icon .= ' unsign';
+			// }else{
+			// 	$icon .= ' unsign';
+			// } 	
 			
 			$html .=  '<tr class="list '.$icon.'">';
 			$id = $item['id'];
@@ -676,13 +694,13 @@ private function defaultHtml($results, $currentPage = 1, $totalPages = 1, $total
 			
 			$html .=  '<td data-lable="email" data-mid="'.$id.'" class="tditem">'.$item['email'].'</td>';
 			
-			$html .=  '<td data-lable="baptizedDate" data-mid="'.$id.'" data-rval="'.($item['baptizedDate']?$item['baptizedDate']:-99999999999).'" class="tditem dateInput">'.($item['baptizedDate']!==NULL?($item['baptizedDate']==0?'???':date("m/d/Y",$item['baptizedDate'])):'').'</td>';
+			$html .=  '<td data-lable="membershipDate" data-mid="'.$id.'" data-rval="'.($item['membershipDate']?$item['membershipDate']:-99999999999).'" class="tditem dateInput">'.($item['membershipDate']!==NULL?($item['membershipDate']==0?'???':date("m/d/Y",$item['membershipDate'])):'').'</td>';
 			
 			$html .=  '<td data-lable="site" data-mid="'.$id.'" class="tditem siteInput">'.$item['site'].'</td>';
 			
 			// Map inactive values to display text
 			$inactiveValue = isset($item['inactive']) ? $item['inactive'] : null;
-			$inactiveDisplay = $this->getInactiveDisplayText($inactiveValue);
+			$inactiveDisplay = getInactiveStatusText($inactiveValue);
 			$html .=  '<td data-lable="inactive" data-mid="'.$id.'" class="tditem">'.$inactiveDisplay.'</td>';
 			
 			$mailchimpStatus = isset($item['onMailchimp']) && $item['onMailchimp'] ? ucfirst($item['onMailchimp']) : 'Not set';
@@ -695,7 +713,7 @@ private function defaultHtml($results, $currentPage = 1, $totalPages = 1, $total
 		
 		// Add pagination links
 		if($totalPages > 1){
-			$html .= $this->generatePaginationLinks($currentPage, $totalPages);
+			$html .= $this->generatePaginationLinks($currentPage, $totalPages, $sortColumn, $sortDirection);
 		}
 
 	}else{
@@ -705,14 +723,17 @@ private function defaultHtml($results, $currentPage = 1, $totalPages = 1, $total
 	return $html;
 }
 
-private function generatePaginationLinks($currentPage, $totalPages){
+private function generatePaginationLinks($currentPage, $totalPages, $sortColumn = 'id', $sortDirection = 'DESC'){
 	$html = '<div class="pagination mt-3 mb-3">';
 	$baseUrl = base_url('xAdmin/search');
+	
+	// Build query string with sort parameters
+	$queryParams = 'sort=' . urlencode($sortColumn) . '&dir=' . urlencode($sortDirection);
 	
 	// Previous link
 	if($currentPage > 1){
 		$prevPage = $currentPage - 1;
-		$html .= '<a href="'.$baseUrl.'?page='.$prevPage.'" class="btn btn-sm btn-secondary mr-2">&laquo; Previous</a>';
+		$html .= '<a href="'.$baseUrl.'?page='.$prevPage.'&'.$queryParams.'" class="btn btn-sm btn-secondary mr-2">&laquo; Previous</a>';
 	}else{
 		$html .= '<span class="btn btn-sm btn-secondary mr-2 disabled">&laquo; Previous</span>';
 	}
@@ -722,7 +743,7 @@ private function generatePaginationLinks($currentPage, $totalPages){
 	
 	// Show first page
 	if($currentPage > 3){
-		$html .= '<a href="'.$baseUrl.'?page=1" class="btn btn-sm btn-outline-secondary mr-1">1</a>';
+		$html .= '<a href="'.$baseUrl.'?page=1&'.$queryParams.'" class="btn btn-sm btn-outline-secondary mr-1">1</a>';
 		if($currentPage > 4){
 			$html .= '<span class="mr-1">...</span>';
 		}
@@ -736,7 +757,7 @@ private function generatePaginationLinks($currentPage, $totalPages){
 		if($i == $currentPage){
 			$html .= '<span class="btn btn-sm btn-primary mr-1">'.$i.'</span>';
 		}else{
-			$html .= '<a href="'.$baseUrl.'?page='.$i.'" class="btn btn-sm btn-outline-secondary mr-1">'.$i.'</a>';
+			$html .= '<a href="'.$baseUrl.'?page='.$i.'&'.$queryParams.'" class="btn btn-sm btn-outline-secondary mr-1">'.$i.'</a>';
 		}
 	}
 	
@@ -745,7 +766,7 @@ private function generatePaginationLinks($currentPage, $totalPages){
 		if($currentPage < $totalPages - 3){
 			$html .= '<span class="mr-1">...</span>';
 		}
-		$html .= '<a href="'.$baseUrl.'?page='.$totalPages.'" class="btn btn-sm btn-outline-secondary mr-1">'.$totalPages.'</a>';
+		$html .= '<a href="'.$baseUrl.'?page='.$totalPages.'&'.$queryParams.'" class="btn btn-sm btn-outline-secondary mr-1">'.$totalPages.'</a>';
 	}
 	
 	$html .= '</span>';
@@ -753,7 +774,7 @@ private function generatePaginationLinks($currentPage, $totalPages){
 	// Next link
 	if($currentPage < $totalPages){
 		$nextPage = $currentPage + 1;
-		$html .= '<a href="'.$baseUrl.'?page='.$nextPage.'" class="btn btn-sm btn-secondary">Next &raquo;</a>';
+		$html .= '<a href="'.$baseUrl.'?page='.$nextPage.'&'.$queryParams.'" class="btn btn-sm btn-secondary">Next &raquo;</a>';
 	}else{
 		$html .= '<span class="btn btn-sm btn-secondary disabled">Next &raquo;</span>';
 	}
@@ -761,19 +782,6 @@ private function generatePaginationLinks($currentPage, $totalPages){
 	$html .= '</div>';
 	
 	return $html;
-}
-
-private function getInactiveDisplayText($inactive){
-	$mapping = [
-		1 => 'Inactive',
-		2 => 'Guest',
-		3 => 'Member',
-		4 => 'Pre-member',
-		5 => 'Ex-member',
-		6 => 'Approval Pending'
-	];
-	
-	return isset($mapping[$inactive]) ? $mapping[$inactive] : '';
 }
 
 private function mode0html($links,$results,$ingClassesIds,$part=1){ 

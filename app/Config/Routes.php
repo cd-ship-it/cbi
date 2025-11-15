@@ -28,6 +28,7 @@ $routes->add('class/(:num)', 'Xclass::index/$1');
 // Development Login (bypass OAuth for local development)
 if (ENVIRONMENT === 'development') {
     $routes->add('dev-login', 'DevLogin::index');
+    $routes->add('cbi/dev-login', 'DevLogin::index');
     $routes->add('auto-login', 'AutoLogin::index');
 }
 
@@ -77,5 +78,8 @@ $routes->add('xAdmin', 'XAdmin\Home::index');
 
 $routes->add('pto', 'Pto::index');
 $routes->add('pto/(:num)', 'Pto::index/$1');
+
+$routes->add('cbi/nva', 'Nva::campus');
+$routes->add('cbi/nva/caseowner', 'Nva::caseOwner');
 
 
