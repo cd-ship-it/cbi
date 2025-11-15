@@ -10,6 +10,8 @@ use App\Models\CapabilitiesModel;
 
 
 use App\Models\VisitorsModel;
+use App\Models\CampusModel;
+use App\Models\VisitorLifestatusPastorMapModel;
 
 class Nva extends BaseController
 {
@@ -396,6 +398,16 @@ class Nva extends BaseController
 
 		$campus_real = $campus ? str_replace('-',' ',$campus) : 0;
 		
+		// Use session dates if URL params are 0 or not provided
+		if(($start == 0 || $start == '0') && ($end == 0 || $end == '0')){
+			$sessionStart = $this->session->get('visitor_start_date');
+			$sessionEnd = $this->session->get('visitor_end_date');
+			if($sessionStart && $sessionEnd){
+				$start = $sessionStart;
+				$end = $sessionEnd;
+			}
+		}
+		
 		$data['canonical']= base_url('nva/table/'.$uid.'/'.$stage_id.'/'.$start.'/'.$end.'/'.$campus);	
 		
 		$this->webConfig->checkMemberLogin($data['canonical']);
@@ -421,7 +433,21 @@ class Nva extends BaseController
 		$data['start'] = $start;	
 		$data['end'] = $end;	
 		$data['campus'] = $campus_real;	
-		$data['peferred_lg'] = $peferred_lg;	
+		$data['peferred_lg'] = $peferred_lg;
+		
+		// Format date range for display
+		if($start && $end){
+			$data['dateRange'] = [
+				'start' => $start,
+				'end' => $end,
+				'startFormatted' => date('M d, Y', strtotime($start)),
+				'endFormatted' => date('M d, Y', strtotime($end)),
+				'startInput' => date('m/d/Y', strtotime($start)),
+				'endInput' => date('m/d/Y', strtotime($end))
+			];
+		} else {
+			$data['dateRange'] = null;
+		}	
 		
 		
 
@@ -943,6 +969,261 @@ private function getFileData($file,$format)
 
 	
 
+
+	public function campus()
+	{
+		$data = $this->data;
+		
+		$data['canonical'] = base_url('cbi/nva');
+		
+		$this->webConfig->checkMemberLogin($data['canonical']);
+		
+		$this->webConfig->checkPermissionByDes(['dashboard_view'],'exit');
+		
+		$modelCampus = new CampusModel();
+		$modelProfiles = new ProfilesModel();
+		
+		$data['current_user_id'] = $this->session->get('mloggedin') ? $this->session->get('mloggedin') : 0;
+		if($data['current_user_id']){
+			$data['userName'] = $modelProfiles->getUserName($data['current_user_id']);
+			$data['userPicture'] = $modelProfiles->db_m_getUserField($data['current_user_id'],'picture');
+		}
+		$data['userPicture'] = isset($data['userPicture']) && $data['userPicture'] ? $data['userPicture'] : base_url().'/assets/images/default_user_profile.jpg';
+		
+		$action = $this->request->getPost('action');
+		
+		// Handle search for campus pastor
+		if($action == 'searchPastor'){
+			$keywords = $this->request->getPost('query');
+			
+			$db = db_connect();
+			$builder = $db->table('baptism');
+			$builder->select('id, CONCAT(fName, " ", lName) as name');
+			$builder->where('inactive', 3);
+			$builder->like('CONCAT(fName, " ", lName)', '%' . $keywords . '%');
+			$builder->limit(10);
+			
+			$results = $builder->get()->getResultArray();
+			
+			echo json_encode($results);
+			exit();
+		}
+		
+		// Handle CRUD operations
+		if($action == 'update'){
+			$campus_id = $this->request->getPost('campus_id');
+			$campus_name = $this->request->getPost('campus_name');
+			$campus_pastor = $this->request->getPost('campus_pastor');
+			
+			$data_update = [
+				'campus' => $campus_name,
+				'campus_pastor' => $campus_pastor
+			];
+			
+			$r = 'error';
+			
+			if($campus_id){
+				if($modelCampus->update($campus_id, $data_update)){
+					$r = 'ok';
+				}
+			} else {
+				if($modelCampus->insert($data_update)){
+					$r = 'ok';
+				}
+			}
+			
+			echo $r;
+			exit();
+		} elseif($action == 'remove'){
+			$campus_id = $this->request->getPost('campus_id');
+			
+			$r = 'error';
+			if($modelCampus->delete($campus_id)){
+				$r = 'ok';
+			}
+			
+			echo $r;
+			exit();
+		}
+		
+		// Get all campuses
+		$data['campusList'] = $modelCampus->findAll();
+		$data['pageTitle'] = 'Edit Campus Pastors';
+		$data['adminUrl'] = base_url('cbi/nva');
+		
+		// Get all pastors for dropdown (inactive = 3)
+		$db = db_connect();
+		$builder = $db->table('baptism');
+		$builder->select('id, CONCAT(fName, " ", lName) as name');
+		$builder->where('inactive', 3);
+		$builder->orderBy('fName', 'ASC');
+		$data['pastors'] = $builder->get()->getResultArray();
+		
+		// Use nva layout - keep campuses for sidebar
+		$data['campuses'] = $this->campuses;
+		$data['main_content'] = view('nva_campus', $data);
+		
+		echo view('nva', $data);
+	}
+
+	public function caseOwner()
+	{
+		$data = $this->data;
+		
+		$data['canonical'] = base_url('cbi/nva/caseowner');
+		
+		$this->webConfig->checkMemberLogin($data['canonical']);
+		
+		$this->webConfig->checkPermissionByDes(['dashboard_view'],'exit');
+		
+		$modelMap = new VisitorLifestatusPastorMapModel();
+		$modelCampus = new CampusModel();
+		$modelProfiles = new ProfilesModel();
+		$visitorsModel = new VisitorsModel();
+		
+		$data['current_user_id'] = $this->session->get('mloggedin') ? $this->session->get('mloggedin') : 0;
+		if($data['current_user_id']){
+			$data['userName'] = $modelProfiles->getUserName($data['current_user_id']);
+			$data['userPicture'] = $modelProfiles->db_m_getUserField($data['current_user_id'],'picture');
+		}
+		$data['userPicture'] = isset($data['userPicture']) && $data['userPicture'] ? $data['userPicture'] : base_url().'/assets/images/default_user_profile.jpg';
+		
+		$action = $this->request->getPost('action');
+		
+		// Handle CRUD operations
+		if($action == 'update'){
+			$map_id = $this->request->getPost('map_id');
+			$campus_id = $this->request->getPost('campus_id');
+			$lifestatus_id = $this->request->getPost('lifestatus_id');
+			$pastor_id = $this->request->getPost('pastor_id');
+			
+			$r = 'error';
+			
+			if($map_id){
+				// Parse composite key: campus_id_lifestatus_id_pastor_id
+				$parts = explode('_', $map_id);
+				if(count($parts) == 3){
+					$old_campus_id = $parts[0];
+					$old_lifestatus_id = $parts[1];
+					$old_pastor_id = $parts[2];
+					
+					// Delete old record and insert new one (since table may not have id column)
+					$db = db_connect();
+					$builder = $db->table('visitor_lifestatus_pastor_map');
+					$builder->where('campus_id', $old_campus_id);
+					$builder->where('lifestatus_id', $old_lifestatus_id);
+					$builder->where('pastor_id', $old_pastor_id);
+					$builder->delete();
+					
+					// Insert new record
+					$data_insert = [
+						'campus_id' => $campus_id,
+						'lifestatus_id' => $lifestatus_id,
+						'pastor_id' => $pastor_id
+					];
+					if($builder->insert($data_insert)){
+						$r = 'ok';
+					}
+				}
+			} else {
+				// Check if record already exists
+				$db = db_connect();
+				$builder = $db->table('visitor_lifestatus_pastor_map');
+				$builder->where('campus_id', $campus_id);
+				$builder->where('lifestatus_id', $lifestatus_id);
+				$builder->where('pastor_id', $pastor_id);
+				$exists = $builder->get()->getRowArray();
+				
+				if(!$exists){
+					$data_insert = [
+						'campus_id' => $campus_id,
+						'lifestatus_id' => $lifestatus_id,
+						'pastor_id' => $pastor_id
+					];
+					if($builder->insert($data_insert)){
+						$r = 'ok';
+					}
+				} else {
+					$r = 'ok'; // Already exists
+				}
+			}
+			
+			echo $r;
+			exit();
+		} elseif($action == 'remove'){
+			$map_id = $this->request->getPost('map_id');
+			
+			$r = 'error';
+			// Parse composite key: campus_id_lifestatus_id_pastor_id
+			$parts = explode('_', $map_id);
+			if(count($parts) == 3){
+				$db = db_connect();
+				$builder = $db->table('visitor_lifestatus_pastor_map');
+				$builder->where('campus_id', $parts[0]);
+				$builder->where('lifestatus_id', $parts[1]);
+				$builder->where('pastor_id', $parts[2]);
+				if($builder->delete()){
+					$r = 'ok';
+				}
+			}
+			
+			echo $r;
+			exit();
+		}
+		
+		// Get all mappings with joined data
+		$db = db_connect();
+		// Use raw SQL query to handle the table structure properly
+		$sql = "SELECT 
+			m.lifestatus_id, 
+			m.campus_id, 
+			m.pastor_id,
+			c.campus, 
+			c.id as campus_id_val, 
+			CONCAT(b.fName, ' ', b.lName) as pastor_name, 
+			b.id as pastor_id_val, 
+			v.life_status, 
+			v.id as lifestatus_id_val
+		FROM visitor_lifestatus_pastor_map m
+		LEFT JOIN visitor_life_status v ON m.lifestatus_id = v.id
+		LEFT JOIN campuses c ON m.campus_id = c.id
+		LEFT JOIN baptism b ON m.pastor_id = b.id
+		ORDER BY c.campus ASC, v.life_status ASC";
+		
+		$query = $db->query($sql);
+		$mappings = $query->getResultArray();
+		
+		// Add a composite key as 'id' for the view to use
+		foreach($mappings as &$mapping){
+			$mapping['id'] = $mapping['campus_id'] . '_' . $mapping['lifestatus_id'] . '_' . $mapping['pastor_id'];
+			$mapping['campus_id'] = $mapping['campus_id_val'] ?? $mapping['campus_id'];
+			$mapping['pastor_id'] = $mapping['pastor_id_val'] ?? $mapping['pastor_id'];
+			$mapping['lifestatus_id'] = $mapping['lifestatus_id_val'] ?? $mapping['lifestatus_id'];
+		}
+		$data['mappings'] = $mappings;
+		
+		// Get all campuses for dropdown
+		$data['campusList'] = $modelCampus->findAll();
+		
+		// Get all life statuses for dropdown
+		$data['lifeStatuses'] = $visitorsModel->get_visitor_life_status();
+		
+		// Get all pastors for dropdown (inactive = 3)
+		$builder = $db->table('baptism');
+		$builder->select('id, CONCAT(fName, " ", lName) as name');
+		$builder->where('inactive', 3);
+		$builder->orderBy('fName', 'ASC');
+		$data['pastors'] = $builder->get()->getResultArray();
+		
+		$data['pageTitle'] = 'Edit default case owner';
+		$data['adminUrl'] = base_url('cbi/nva/caseowner');
+		
+		// Use nva layout - keep campuses for sidebar
+		$data['campuses'] = $this->campuses;
+		$data['main_content'] = view('nva_caseowner', $data);
+		
+		echo view('nva', $data);
+	}
 
 	//--------------------------------------------------------------------
 

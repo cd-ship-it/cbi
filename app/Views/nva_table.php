@@ -92,6 +92,14 @@
 
                     <!-- DataTales Example -->
                     <div class="card shadow mb-4">
+                        <div class="card-header py-3">
+							<?php if(isset($dateRange) && $dateRange): ?>
+								<h6 class="m-0 font-weight-bold text-primary">New Visitors</h6>
+								<small class="text-muted">Date Range: <?= $dateRange['startFormatted']; ?> - <?= $dateRange['endFormatted']; ?></small>
+							<?php else: ?>
+								<h6 class="m-0 font-weight-bold text-primary">New Visitors</h6>
+							<?php endif; ?>
+						</div>
                         <div class="card-body">
 						
 						
@@ -229,7 +237,7 @@ $strlen = mb_strlen($string, 'UTF-8');
 }
 
 
-?>		
+?>
 
 
 

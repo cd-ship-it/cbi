@@ -399,6 +399,23 @@ function getSummary ($uid,$stage_id,$start,$end,$campus,$zone){
 	
 }
 
+function getNewVisitorsPerCampus($start, $end){
+	
+	$db = db_connect();
+	$escapedStart = $db->escape($start);
+	$escapedEnd = $db->escape($end);
+	
+	$builder = $db->table('campuses');
+	$builder->select('campuses.campus, COALESCE(COUNT(visitors.id), 0) as count');
+	$builder->join('visitors', "visitors.campus = campuses.campus AND visitors.stage_id = 1 AND visitors.date_visited >= {$escapedStart} AND visitors.date_visited <= {$escapedEnd}", 'left', false);
+	$builder->groupBy('campuses.id, campuses.campus');
+	$builder->orderBy('campuses.campus ASC');
+	
+	$r = $builder->get()->getResultArray();
+	
+	return $r ? $r : [];
+}
+
 function getDetail($visitors_id){
 	
 	$this->select('visitors.*,visitor_stage.display_name as stage, CONCAT(baptism.fName," ",baptism.lName) as case_owner_name, baptism.id as case_owner_id,DATE_FORMAT(visitors.date_visited, "%m/%d/%Y") as visited');
