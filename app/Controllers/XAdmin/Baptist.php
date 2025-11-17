@@ -12,7 +12,6 @@ use App\Models\ShapeModel;
 use App\Models\PtoRelationModel;
 use App\Models\CapabilitiesModel;
 use App\Models\WebmetaModel;
-use App\Libraries\MailchimpService;
 
 class Baptist extends BaseController
 {
@@ -258,7 +257,11 @@ class Baptist extends BaseController
 						$insertId = $modelProfilesModel->db->insertID();
 						
 						$r= 'Inserted Successfully<br /><a href="'.base_url('xAdmin/baptist/'.$insertId).'">Edit</a> | <a href="'.base_url('xAdmin/baptist').'">Add New Baptist</a>';
-						
+						$mlogs['bid'] = $insertId;
+						$mlogs['by'] = $modelProfilesModel->getUserName($this->logged_id,1);
+						$mlogs['log'] = 'Created by Admin: '.$this->logged_name;
+						$modelProfilesModel->member_change_log($mlogs);						
+				
 					}else{
 						$r= 'Error';
 					}
@@ -269,10 +272,6 @@ class Baptist extends BaseController
 
 				// Get old user data before updating
 				$oldUser = $modelProfilesModel->getBaptistbyId($bid);
-				
-				// MailChimp integration
-				$mailchimpService = new MailchimpService();
-				$mailchimpMessage = '';
 				
 				// Check for status change (inactive field at line 425)
 				$oldStatus = isset($oldUser['inactive']) ? $oldUser['inactive'] : null;
@@ -286,109 +285,16 @@ class Baptist extends BaseController
 					$r= 'Updated successfully';
 					
 					// Handle MailChimp operations after successful database update
-					try {
-						// Case 1: Status changed from 3 (Member) to non-3 - Unsubscribe
-						if($oldStatus == 3 && $newStatus != 3 && $newStatus !== null) {
-							$mcResult = $mailchimpService->updateMemberStatus($oldEmail, 'unsubscribed');
-							if($mcResult['success']) {
-								// Update onMailchimp column in database
-								$modelProfilesModel->update($bid, ['onMailchimp' => 'unsubscribed']);
-								$mailchimpMessage .= ' | MailChimp: Unsubscribed successfully';
-							} else {
-								$errorMsg = $mcResult['message'] ?? 'Unknown error';
-								$mailchimpMessage .= ' | MailChimp unsubscribe failed: ' . $errorMsg;
-								log_message('error', 'MailChimp unsubscribe failed for bid ' . $bid . ': ' . $errorMsg . ' [Debug: ' . json_encode($mcResult) . ']');
-							}
-						}
-						
-						// Case 2: Status changed from non-3 to 3 (Member) - Subscribe or Create
-						if($oldStatus != 3 && $newStatus == 3) {
-							// Check if member exists in MailChimp
-							$mcMember = $mailchimpService->getMemberByEmail($newEmail);
-							if($mcMember) {
-								// Member exists, update to subscribed
-								$mcResult = $mailchimpService->createOrUpdateMember($newEmail, $data['user']['fName'], $data['user']['lName'], 'subscribed');
-								if($mcResult['success']) {
-									// Update onMailchimp column in database
-									$modelProfilesModel->update($bid, ['onMailchimp' => 'subscribed']);
-									$mailchimpMessage .= ' | MailChimp: Updated to subscribed';
-								} else {
-									// Check for HTTP 400 error (user unsubscribed themselves)
-									$httpCode = $mcResult['debug']['http_code'] ?? $mcResult['http_code'] ?? null;
-									if($httpCode == 400) {
-										$mailchimpMessage .= ' | Since this user unsubscribed his/herself, you can\'t not re-subscribe them without their consent.';
-									} else {
-										$errorMsg = $mcResult['message'] ?? 'Unknown error';
-										$mailchimpMessage .= ' | MailChimp update failed: ' . $errorMsg;
-									}
-									log_message('error', 'MailChimp update failed for bid ' . $bid . ' (email: ' . $newEmail . '): ' . ($mcResult['message'] ?? 'Unknown error') . ' [Debug: ' . json_encode($mcResult) . ']');
-								}
-							} else {
-								// Member doesn't exist, create new contact
-								$mcResult = $mailchimpService->createOrUpdateMember($newEmail, $data['user']['fName'], $data['user']['lName'], 'subscribed');
-								if($mcResult['success']) {
-									// Update onMailchimp column in database
-									$modelProfilesModel->update($bid, ['onMailchimp' => 'subscribed']);
-									$mailchimpMessage .= ' | MailChimp: New contact created and subscribed';
-								} else {
-									// Check for HTTP 400 error (user unsubscribed themselves)
-									$httpCode = $mcResult['debug']['http_code'] ?? $mcResult['http_code'] ?? null;
-									if($httpCode == 400) {
-										$mailchimpMessage .= ' | Since this user unsubscribed his/herself, you can\'t not re-subscribe them without their consent.';
-									} else {
-										$errorMsg = $mcResult['message'] ?? 'Unknown error';
-										$mailchimpMessage .= ' | MailChimp creation failed: ' . $errorMsg;
-									}
-									log_message('error', 'MailChimp creation failed for bid ' . $bid . ' (email: ' . $newEmail . ', fName: ' . $data['user']['fName'] . ', lName: ' . $data['user']['lName'] . '): ' . ($mcResult['message'] ?? 'Unknown error') . ' [Debug: ' . json_encode($mcResult) . ']');
-								}
-							}
-						}
-						
-						// Case 3: Email changed - Update MailChimp email
-						if($oldEmail != $newEmail && $newEmail) {
-							// Check if old email exists in MailChimp
-							$mcMember = $mailchimpService->getMemberByEmail($oldEmail);
-							if($mcMember) {
-								// Member exists, update email address
-								$mcResult = $mailchimpService->updateMemberEmail($oldEmail, $newEmail, $data['user']['fName'], $data['user']['lName']);
-								if($mcResult['success']) {
-									// Keep the current MailChimp status
-									$currentStatus = $mcMember['status'] ?? 'subscribed';
-									$onMailchimpStatus = ($currentStatus == 'subscribed') ? 'subscribed' : (($currentStatus == 'unsubscribed') ? 'unsubscribed' : 'subscribed');
-									$modelProfilesModel->update($bid, ['onMailchimp' => $onMailchimpStatus]);
-									$mailchimpMessage .= ' | MailChimp: Email updated successfully';
-								} else {
-									$errorMsg = $mcResult['message'] ?? 'Unknown error';
-									$mailchimpMessage .= ' | MailChimp email update failed: ' . $errorMsg;
-									log_message('error', 'MailChimp email update failed for bid ' . $bid . ' (old: ' . $oldEmail . ', new: ' . $newEmail . '): ' . $errorMsg . ' [Debug: ' . json_encode($mcResult) . ']');
-								}
-							} else {
-								// Old email doesn't exist in MailChimp
-								// If user is a Member (status = 3), create new contact with new email
-								if($newStatus == 3 || ($newStatus === null && $oldStatus == 3)) {
-									$mcResult = $mailchimpService->createOrUpdateMember($newEmail, $data['user']['fName'], $data['user']['lName'], 'subscribed');
-									if($mcResult['success']) {
-										$modelProfilesModel->update($bid, ['onMailchimp' => 'subscribed']);
-										$mailchimpMessage .= ' | MailChimp: New contact created with new email';
-									} else {
-										// Check for HTTP 400 error (user unsubscribed themselves)
-										$httpCode = $mcResult['debug']['http_code'] ?? $mcResult['http_code'] ?? null;
-										if($httpCode == 400) {
-											$mailchimpMessage .= ' | Since this user unsubscribed his/herself, you can\'t not re-subscribe them without their consent.';
-										} else {
-											$errorMsg = $mcResult['message'] ?? 'Unknown error';
-											$mailchimpMessage .= ' | MailChimp creation failed: ' . $errorMsg;
-										}
-										log_message('error', 'MailChimp creation failed for bid ' . $bid . ' (new email: ' . $newEmail . ', fName: ' . $data['user']['fName'] . ', lName: ' . $data['user']['lName'] . '): ' . ($mcResult['message'] ?? 'Unknown error') . ' [Debug: ' . json_encode($mcResult) . ']');
-									}
-								}
-							}
-						}
-						
-					} catch(\Exception $e) {
-						$mailchimpMessage .= ' | MailChimp error: ' . $e->getMessage();
-						log_message('error', 'MailChimp exception for bid ' . $bid . ': ' . $e->getMessage());
-					}
+					$mailchimpMessage = $modelProfilesModel->syncMailchimpOnStatusChange(
+						$bid,
+						$oldStatus,
+						$newStatus,
+						$oldEmail,
+						$newEmail,
+						$data['user']['fName'],
+						$data['user']['lName'],
+						$this->logged_id
+					);
 					
 					// Append MailChimp message to response
 					$r .= $mailchimpMessage;
@@ -399,10 +305,16 @@ class Baptist extends BaseController
 			}
 				
 			}elseif($action=='delete'){
-				
 				$this->webConfig->checkPermissionByDes(['user_delete'],'exit');
 				
 				$bid = $_POST['bid'];
+				
+				// Get user data before deletion to archive email in MailChimp
+				$userToDelete = $modelProfilesModel->getBaptistbyId($bid);
+				if($userToDelete && isset($userToDelete['email']) && $userToDelete['email']) {
+					$archiveResult = $modelProfilesModel->archiveMailchimpEmail($bid, $userToDelete['email'], $this->logged_id);
+					// Note: Archive result is logged but not returned to user since deletion continues
+				}
 				
 				$r = $modelProfilesModel->deleteBaptist($bid);
 				
@@ -577,27 +489,6 @@ class Baptist extends BaseController
 
 
 
-
-	public function getMailchimpStatus()
-	{
-		$bid = $this->request->getGet('bid');
-		
-		if(!$bid) {
-			return $this->response->setJSON(['error' => 'BID required']);
-		}
-		
-		$modelProfilesModel = new ProfilesModel();
-		$user = $modelProfilesModel->getBaptistbyId($bid);
-		
-		if(!$user) {
-			return $this->response->setJSON(['error' => 'User not found']);
-		}
-		
-		return $this->response->setJSON([
-			'onMailchimp' => isset($user['onMailchimp']) ? $user['onMailchimp'] : null
-		]);
-	}
-
 	public function syncMailchimp()
 	{
 		$bid = $this->request->getPost('bid');
@@ -617,61 +508,10 @@ class Baptist extends BaseController
 		$fName = isset($user['fName']) ? $user['fName'] : '';
 		$lName = isset($user['lName']) ? $user['lName'] : '';
 		
-		if(!$email || !$fName || !$lName) {
-			return $this->response->setJSON(['success' => false, 'message' => 'Missing required fields: email, first name, or last name']);
-		}
+		// Use the reusable helper method from ProfilesModel
+		$result = $modelProfilesModel->syncMailchimpMember($bid, $email, $fName, $lName, $this->logged_id);
 		
-		try {
-			$mailchimpService = new MailchimpService();
-			
-			// Check if member exists in MailChimp
-			$mcMember = $mailchimpService->getMemberByEmail($email);
-			
-			if($mcMember) {
-				// Member exists, update email (and other info)
-				$mcResult = $mailchimpService->createOrUpdateMember($email, $fName, $lName, 'subscribed');
-				
-				if($mcResult['success']) {
-					// Update onMailchimp column in database
-					$modelProfilesModel->update($bid, ['onMailchimp' => 'subscribed']);
-					
-					// Get updated user data
-					$updatedUser = $modelProfilesModel->getBaptistbyId($bid);
-					
-					return $this->response->setJSON([
-						'success' => true,
-						'message' => 'MailChimp: Member updated successfully',
-						'onMailchimp' => isset($updatedUser['onMailchimp']) ? $updatedUser['onMailchimp'] : null
-					]);
-				} else {
-					$errorMsg = $mcResult['message'] ?? 'Unknown error';
-					return $this->response->setJSON(['success' => false, 'message' => 'MailChimp update failed: ' . $errorMsg]);
-				}
-			} else {
-				// Member doesn't exist, create new contact
-				$mcResult = $mailchimpService->createOrUpdateMember($email, $fName, $lName, 'subscribed');
-				
-				if($mcResult['success']) {
-					// Update onMailchimp column in database
-					$modelProfilesModel->update($bid, ['onMailchimp' => 'subscribed']);
-					
-					// Get updated user data
-					$updatedUser = $modelProfilesModel->getBaptistbyId($bid);
-					
-					return $this->response->setJSON([
-						'success' => true,
-						'message' => 'MailChimp: New contact created and subscribed',
-						'onMailchimp' => isset($updatedUser['onMailchimp']) ? $updatedUser['onMailchimp'] : null
-					]);
-				} else {
-					$errorMsg = $mcResult['message'] ?? 'Unknown error';
-					return $this->response->setJSON(['success' => false, 'message' => 'MailChimp creation failed: ' . $errorMsg]);
-				}
-			}
-		} catch(\Exception $e) {
-			log_message('error', 'MailChimp sync exception for bid ' . $bid . ': ' . $e->getMessage());
-			return $this->response->setJSON(['success' => false, 'message' => 'MailChimp error: ' . $e->getMessage()]);
-		}
+		return $this->response->setJSON($result);
 	}
 
 	//--------------------------------------------------------------------

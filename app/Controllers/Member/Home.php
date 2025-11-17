@@ -506,7 +506,7 @@ class Home extends BaseController
 					
 					if(isset($_POST['iAgreer'])){
 							$mlogs['bid'] = $baptist['id'];
-							$mlogs['by'] = '用戶自主申請';
+							$mlogs['by'] = 'Self-Signup';
 							$mlogs['log'] = 'Status: Guest => Pre-Member';
 							$modelProfiles->member_change_log($mlogs);
 					}							

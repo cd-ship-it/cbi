@@ -322,6 +322,313 @@ public function searchBaptisms($keywords,$exclude){
 	
 }
 
+/**
+ * Sync MailChimp subscription status based on member status changes
+ * 
+ * @param int $bid Baptism ID
+ * @param int|null $oldStatus Previous inactive status
+ * @param int|null $newStatus New inactive status
+ * @param string $oldEmail Previous email address
+ * @param string $newEmail New email address
+ * @param string $fName First name
+ * @param string $lName Last name
+ * @param int|null $loggedId User ID making the change (for logging)
+ * @return string Message string to append to response
+ */
+public function syncMailchimpOnStatusChange($bid, $oldStatus, $newStatus, $oldEmail, $newEmail, $fName, $lName, $loggedId = null) {
+	$mailchimpService = new \App\Libraries\MailchimpService();
+	$message = '';
+	
+	// Validate required fields
+	if (!$newEmail || !$fName || !$lName) {
+		$missingFields = [];
+		if(!$newEmail) $missingFields[] = 'email';
+		if(!$fName) $missingFields[] = 'first name';
+		if(!$lName) $missingFields[] = 'last name';
+		return ' | MailChimp: Cannot sync - missing ' . implode(', ', $missingFields);
+	}
+	
+	try {
+		// Case 1: Status changed from Member (3) to non-Member - Unsubscribe
+		if($oldStatus == 3 && $newStatus != 3 && $newStatus !== null) {
+			$mcResult = $mailchimpService->updateMemberStatus($oldEmail, 'unsubscribed');
+			if($mcResult['success']) {
+				$this->update($bid, ['onMailchimp' => 'unsubscribed']);
+				$message .= ' | MailChimp: Unsubscribed successfully';
+			} else {
+				$errorMsg = $mcResult['message'] ?? 'Unknown error';
+				$message .= ' | MailChimp unsubscribe failed: ' . $errorMsg;
+				log_message('error', 'MailChimp unsubscribe failed for bid ' . $bid . ': ' . $errorMsg . ' [Debug: ' . json_encode($mcResult) . ']');
+			}
+			return $message;
+		}
+		
+		// Case 2: Status changed to Member (3) - Subscribe or Create
+		if($newStatus == 3) {
+			// Check if member exists in MailChimp
+			$mcMember = $mailchimpService->getMemberByEmail($newEmail);
+			
+			if($mcMember) {
+				// Member exists, update to subscribed
+				$mcResult = $mailchimpService->createOrUpdateMember($newEmail, $fName, $lName, 'subscribed');
+				if($mcResult['success']) {
+					$this->update($bid, ['onMailchimp' => 'subscribed']);
+					$message .= ' | MailChimp: Updated to subscribed';
+					
+					// Log the change if loggedId provided
+					if($loggedId) {
+						$mlogs['bid'] = $bid;
+						$mlogs['by'] = $this->getUserName($loggedId, 1);
+						$mlogs['log'] = 'MailChimp: Updated to subscribed';
+						$this->member_change_log($mlogs);
+					}
+				} else {
+					$message .= $this->handleMailchimpError($mcResult, $bid, $newEmail, 'update');
+				}
+			} else {
+				// Member doesn't exist, create new contact
+				$mcResult = $mailchimpService->createOrUpdateMember($newEmail, $fName, $lName, 'subscribed');
+				if($mcResult['success']) {
+					$this->update($bid, ['onMailchimp' => 'subscribed']);
+					$message .= ' | MailChimp: New contact created and subscribed';
+					
+					// Log the change if loggedId provided
+					if($loggedId) {
+						$mlogs['bid'] = $bid;
+						$mlogs['by'] = $this->getUserName($loggedId, 1);
+						$mlogs['log'] = 'MailChimp: New contact created and subscribed';
+						$this->member_change_log($mlogs);
+					}
+				} else {
+					$message .= $this->handleMailchimpError($mcResult, $bid, $newEmail, 'creation', $fName, $lName);
+				}
+			}
+			return $message;
+		}
+		
+		// Case 3: Email changed - Update MailChimp email
+		if($oldEmail != $newEmail && $newEmail) {
+			// Check if old email exists in MailChimp
+			$mcMember = $mailchimpService->getMemberByEmail($oldEmail);
+			
+			if($mcMember) {
+				// Member exists, update email address
+				$mcResult = $mailchimpService->updateMemberEmail($oldEmail, $newEmail, $fName, $lName);
+				if($mcResult['success']) {
+					// Keep the current MailChimp status
+					$currentStatus = $mcMember['status'] ?? 'subscribed';
+					$onMailchimpStatus = ($currentStatus == 'subscribed') ? 'subscribed' : (($currentStatus == 'unsubscribed') ? 'unsubscribed' : 'subscribed');
+					$this->update($bid, ['onMailchimp' => $onMailchimpStatus]);
+					$message .= ' | MailChimp: Email updated successfully';
+				} else {
+					$errorMsg = $mcResult['message'] ?? 'Unknown error';
+					$message .= ' | MailChimp email update failed: ' . $errorMsg;
+					log_message('error', 'MailChimp email update failed for bid ' . $bid . ' (old: ' . $oldEmail . ', new: ' . $newEmail . '): ' . $errorMsg . ' [Debug: ' . json_encode($mcResult) . ']');
+				}
+			} else {
+				// Old email doesn't exist in MailChimp
+				// If user is a Member (status = 3), create new contact with new email
+				if($newStatus == 3 || ($newStatus === null && $oldStatus == 3)) {
+					$mcResult = $mailchimpService->createOrUpdateMember($newEmail, $fName, $lName, 'subscribed');
+					if($mcResult['success']) {
+						$this->update($bid, ['onMailchimp' => 'subscribed']);
+						$message .= ' | MailChimp: New contact created with new email';
+					} else {
+						$message .= $this->handleMailchimpError($mcResult, $bid, $newEmail, 'creation', $fName, $lName);
+					}
+				}
+			}
+			return $message;
+		}
+		
+	} catch(\Exception $e) {
+		$message .= ' | MailChimp error: ' . $e->getMessage();
+		log_message('error', 'MailChimp exception for bid ' . $bid . ': ' . $e->getMessage());
+	}
+	
+	return $message;
+}
+
+/**
+ * Manually sync a member to MailChimp (subscribe or update existing)
+ * This is used for manual sync operations, not status-based changes
+ * 
+ * @param int $bid Baptism ID
+ * @param string $email Email address
+ * @param string $fName First name
+ * @param string $lName Last name
+ * @param int|null $loggedId User ID making the change (for logging)
+ * @return array Result array with 'success' boolean, 'message' string, and 'onMailchimp' status
+ */
+public function syncMailchimpMember($bid, $email, $fName, $lName, $loggedId = null) {
+	// Validate required fields
+	if (!$email || !$fName || !$lName) {
+		$missingFields = [];
+		if(!$email) $missingFields[] = 'email';
+		if(!$fName) $missingFields[] = 'first name';
+		if(!$lName) $missingFields[] = 'last name';
+		return [
+			'success' => false, 
+			'message' => 'Missing required fields: ' . implode(', ', $missingFields),
+			'onMailchimp' => null
+		];
+	}
+	
+	$mailchimpService = new \App\Libraries\MailchimpService();
+	
+	try {
+		// Check if member exists in MailChimp
+		$mcMember = $mailchimpService->getMemberByEmail($email);
+		
+		if($mcMember) {
+			// Member exists, update to subscribed
+			$mcResult = $mailchimpService->createOrUpdateMember($email, $fName, $lName, 'subscribed');
+			if($mcResult['success']) {
+				$this->update($bid, ['onMailchimp' => 'subscribed']);
+				
+				// Log the change if loggedId provided
+				if($loggedId) {
+					$mlogs['bid'] = $bid;
+					$mlogs['by'] = $this->getUserName($loggedId, 1);
+					$mlogs['log'] = 'MailChimp: Member updated successfully';
+					$this->member_change_log($mlogs);
+				}
+				
+				$updatedUser = $this->getBaptistbyId($bid);
+				return [
+					'success' => true,
+					'message' => 'MailChimp: Member updated successfully',
+					'onMailchimp' => isset($updatedUser['onMailchimp']) ? $updatedUser['onMailchimp'] : 'subscribed'
+				];
+			} else {
+				$errorMsg = $this->handleMailchimpError($mcResult, $bid, $email, 'update', $fName, $lName);
+				// Remove the leading " | " from the error message for JSON response
+				$errorMsg = ltrim($errorMsg, ' |');
+				return [
+					'success' => false,
+					'message' => $errorMsg,
+					'onMailchimp' => null
+				];
+			}
+		} else {
+			// Member doesn't exist, create new contact
+			$mcResult = $mailchimpService->createOrUpdateMember($email, $fName, $lName, 'subscribed');
+			if($mcResult['success']) {
+				$this->update($bid, ['onMailchimp' => 'subscribed']);
+				
+				// Log the change if loggedId provided
+				if($loggedId) {
+					$mlogs['bid'] = $bid;
+					$mlogs['by'] = $this->getUserName($loggedId, 1);
+					$mlogs['log'] = 'MailChimp: New contact created and subscribed';
+					$this->member_change_log($mlogs);
+				}
+				
+				$updatedUser = $this->getBaptistbyId($bid);
+				return [
+					'success' => true,
+					'message' => 'MailChimp: New contact created and subscribed',
+					'onMailchimp' => isset($updatedUser['onMailchimp']) ? $updatedUser['onMailchimp'] : 'subscribed'
+				];
+			} else {
+				$errorMsg = $this->handleMailchimpError($mcResult, $bid, $email, 'creation', $fName, $lName);
+				// Remove the leading " | " from the error message for JSON response
+				$errorMsg = ltrim($errorMsg, ' |');
+				return [
+					'success' => false,
+					'message' => $errorMsg,
+					'onMailchimp' => null
+				];
+			}
+		}
+		
+	} catch(\Exception $e) {
+		$errorMsg = 'MailChimp error: ' . $e->getMessage();
+		log_message('error', 'MailChimp sync exception for bid ' . $bid . ': ' . $e->getMessage());
+		return [
+			'success' => false,
+			'message' => $errorMsg,
+			'onMailchimp' => null
+		];
+	}
+}
+
+/**
+ * Archive an email address in MailChimp
+ * 
+ * @param int $bid Baptism ID
+ * @param string $email Email address to archive
+ * @param int|null $loggedId User ID making the change (for logging)
+ * @return array Result array with 'success' boolean and 'message' string
+ */
+public function archiveMailchimpEmail($bid, $email, $loggedId = null) {
+	if (!$email) {
+		return ['success' => false, 'message' => 'Email address is required'];
+	}
+	
+	$mailchimpService = new \App\Libraries\MailchimpService();
+	
+	try {
+		// Check if member exists in MailChimp
+		$mcMember = $mailchimpService->getMemberByEmail($email);
+		
+		if (!$mcMember) {
+			return ['success' => false, 'message' => 'Member not found in MailChimp'];
+		}
+		
+		// Archive the member
+		$mcResult = $mailchimpService->updateMemberStatus($email, 'archived');
+		
+		if ($mcResult['success']) {
+
+			return ['success' => true, 'message' => 'MailChimp: Email archived successfully'];
+		} else {
+			$errorMsg = $mcResult['message'] ?? 'Unknown error';
+			log_message('error', 'MailChimp archive failed for bid ' . $bid . ' (email: ' . $email . '): ' . $errorMsg . ' [Debug: ' . json_encode($mcResult) . ']');
+			return ['success' => false, 'message' => 'MailChimp archive failed: ' . $errorMsg];
+		}
+		
+	} catch(\Exception $e) {
+		$errorMsg = 'MailChimp error: ' . $e->getMessage();
+		log_message('error', 'MailChimp archive exception for bid ' . $bid . ': ' . $e->getMessage());
+		return ['success' => false, 'message' => $errorMsg];
+	}
+}
+
+/**
+ * Handle MailChimp error responses consistently
+ * 
+ * @param array $mcResult MailChimp service result
+ * @param int $bid Baptism ID
+ * @param string $email Email address
+ * @param string $operation Operation type ('update' or 'creation')
+ * @param string|null $fName First name (for logging)
+ * @param string|null $lName Last name (for logging)
+ * @return string Error message to append
+ */
+private function handleMailchimpError($mcResult, $bid, $email, $operation, $fName = null, $lName = null) {
+	$message = '';
+	
+	// Check for HTTP 400 error (user unsubscribed themselves)
+	$httpCode = $mcResult['debug']['http_code'] ?? $mcResult['http_code'] ?? null;
+	if($httpCode == 400) {
+		$message .= ' | Since this user unsubscribed his/herself, you can\'t not re-subscribe them without their consent.';
+	} else {
+		$errorMsg = $mcResult['message'] ?? 'Unknown error';
+		$message .= ' | MailChimp ' . $operation . ' failed: ' . $errorMsg;
+		
+		// Log the error
+		$logMsg = 'MailChimp ' . $operation . ' failed for bid ' . $bid . ' (email: ' . $email;
+		if($fName && $lName) {
+			$logMsg .= ', fName: ' . $fName . ', lName: ' . $lName;
+		}
+		$logMsg .= '): ' . $errorMsg . ' [Debug: ' . json_encode($mcResult) . ']';
+		log_message('error', $logMsg);
+	}
+	
+	return $message;
+}
+
 
 
 
