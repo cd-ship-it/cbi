@@ -140,11 +140,15 @@ class Home extends BaseController
 
 		$pastoralApproval = $modelProfiles->get_pastoralApprovalMembers($this->logged_id); 
 
-		// Get new visitors per campus - allow user to set date range via GET params, check session, default to 3 weeks
+		// Get new visitors per campus - allow user to set date range via GET params, default to 8 weeks
+		// Clear any existing session values
+		$this->session->remove('visitor_start_date');
+		$this->session->remove('visitor_end_date');
+		
 		$startDateParam = $this->request->getGet('visitor_start_date');
 		$endDateParam = $this->request->getGet('visitor_end_date');
 		
-		// Check session first, then GET params, then default
+		// Use GET params if provided, otherwise default to last 8 weeks
 		if($startDateParam && $endDateParam){
 			// Validate dates from GET params
 			$startDate = date('Y-m-d', strtotime($startDateParam));
@@ -156,22 +160,10 @@ class Home extends BaseController
 				$startDate = $endDate;
 				$endDate = $temp;
 			}
-			
-			// Save to session
-			$this->session->set('visitor_start_date', $startDate);
-			$this->session->set('visitor_end_date', $endDate);
-		} elseif($this->session->get('visitor_start_date') && $this->session->get('visitor_end_date')){
-			// Use dates from session
-			$startDate = $this->session->get('visitor_start_date');
-			$endDate = $this->session->get('visitor_end_date');
 		} else {
-			// Default to last 3 weeks
-			$startDate = date('Y-m-d', strtotime('-3 weeks'));
+			// Default to last 8 weeks
+			$startDate = date('Y-m-d', strtotime('-8 weeks'));
 			$endDate = date('Y-m-d');
-			
-			// Save default to session
-			$this->session->set('visitor_start_date', $startDate);
-			$this->session->set('visitor_end_date', $endDate);
 		}
 		
 		$data['newVisitorsPerCampus'] = $visitorsModel->getNewVisitorsPerCampus($startDate, $endDate);

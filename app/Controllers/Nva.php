@@ -398,14 +398,11 @@ class Nva extends BaseController
 
 		$campus_real = $campus ? str_replace('-',' ',$campus) : 0;
 		
-		// Use session dates if URL params are 0 or not provided
+		// Default to last 8 weeks if URL params are 0 or not provided
 		if(($start == 0 || $start == '0') && ($end == 0 || $end == '0')){
-			$sessionStart = $this->session->get('visitor_start_date');
-			$sessionEnd = $this->session->get('visitor_end_date');
-			if($sessionStart && $sessionEnd){
-				$start = $sessionStart;
-				$end = $sessionEnd;
-			}
+			// Default to last 8 weeks
+			$start = date('Y-m-d', strtotime('-8 weeks'));
+			$end = date('Y-m-d');
 		}
 		
 		$data['canonical']= base_url('nva/table/'.$uid.'/'.$stage_id.'/'.$start.'/'.$end.'/'.$campus);	
@@ -435,19 +432,15 @@ class Nva extends BaseController
 		$data['campus'] = $campus_real;	
 		$data['peferred_lg'] = $peferred_lg;
 		
-		// Format date range for display
-		if($start && $end){
-			$data['dateRange'] = [
-				'start' => $start,
-				'end' => $end,
-				'startFormatted' => date('M d, Y', strtotime($start)),
-				'endFormatted' => date('M d, Y', strtotime($end)),
-				'startInput' => date('m/d/Y', strtotime($start)),
-				'endInput' => date('m/d/Y', strtotime($end))
-			];
-		} else {
-			$data['dateRange'] = null;
-		}	
+		// Format date range for display - always set since we default to 8 weeks
+		$data['dateRange'] = [
+			'start' => $start,
+			'end' => $end,
+			'startFormatted' => date('M d, Y', strtotime($start)),
+			'endFormatted' => date('M d, Y', strtotime($end)),
+			'startInput' => date('m/d/Y', strtotime($start)),
+			'endInput' => date('m/d/Y', strtotime($end))
+		];	
 		
 		
 

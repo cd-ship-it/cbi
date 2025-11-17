@@ -244,7 +244,11 @@ class Pending extends BaseController
 						<body>'.nl2br($msgCon).'</body>
 						</html>';				
 				
-						$rr = $this->webConfig->sendtomandrill($subject, $message, $to, $the_office_assistant_email);							
+						$rr = $this->webConfig->sendtomandrill($subject, $message, $to, $the_office_assistant_email);
+						$mlogs['bid'] = $bid;
+						$mlogs['by'] = $modelProfiles->getUserName($this->logged_id,1);
+						$mlogs['log'] = 'An email has been sent to the new member: '.$to;
+						$modelProfiles->member_change_log($mlogs);		
 						
 					}
 					
@@ -264,6 +268,10 @@ class Pending extends BaseController
 									// Update onMailchimp column in database
 									$modelProfiles->update($bid, ['onMailchimp' => 'subscribed']);
 									$mailchimpMessage .= ' | MailChimp: Updated to subscribed';
+									$mlogs['bid'] = $bid;
+									$mlogs['by'] = $modelProfiles->getUserName($this->logged_id,1);
+									$mlogs['log'] = 'mailchimp: Updated to subscribed';
+									$modelProfiles->member_change_log($mlogs);		
 								} else {
 									// Check for HTTP 400 error (user unsubscribed themselves)
 									$httpCode = $mcResult['debug']['http_code'] ?? $mcResult['http_code'] ?? null;
@@ -284,6 +292,10 @@ class Pending extends BaseController
 									// Update onMailchimp column in database
 									$modelProfiles->update($bid, ['onMailchimp' => 'subscribed']);
 									$mailchimpMessage .= ' | MailChimp: New contact created and subscribed';
+									$mlogs['bid'] = $bid;
+									$mlogs['by'] = $modelProfiles->getUserName($this->logged_id,1);
+									$mlogs['log'] = 'mailchimp: New contact created and subscribed';
+									$modelProfiles->member_change_log($mlogs);		
 								} else {
 									// Check for HTTP 400 error (user unsubscribed themselves)
 									$httpCode = $mcResult['debug']['http_code'] ?? $mcResult['http_code'] ?? null;

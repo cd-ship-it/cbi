@@ -34,20 +34,16 @@
 					<?php if(!empty($newVisitorsPerCampus)): ?>
 					<div id="newVisitorsCard" class="card shadow mb-4">
 						<div class="card-header py-3">
-							<div class="d-flex justify-content-between align-items-center flex-wrap">
-								<div class="mb-2 mb-md-0">
-									<h6 class="m-0 font-weight-bold text-primary">New Visitors by Campus</h6>
-									<small class="text-muted">Date Range: <?= $newVisitorsDateRange['startFormatted']; ?> - <?= $newVisitorsDateRange['endFormatted']; ?></small>
-								</div>
-								<div class="d-flex align-items-center" style="gap: 8px;">
-									<label class="mb-0 small mr-1">Start:</label>
-									<input type="text" id="visitor_start_date" class="form-control form-control-sm dateInput" style="width: 120px;" value="<?= $newVisitorsDateRange['startInput']; ?>" />
-									<label class="mb-0 small mr-1 ml-2">End:</label>
-									<input type="text" id="visitor_end_date" class="form-control form-control-sm dateInput" style="width: 120px;" value="<?= $newVisitorsDateRange['endInput']; ?>" />
-									<button type="button" id="updateVisitorDates" class="btn btn-sm btn-primary ml-2">
-										<i class="fas fa-sync-alt"></i> Update
-									</button>
-								</div>
+							<h6 class="m-0 font-weight-bold text-primary">New Visitors by Campus</h6>
+							
+							<div class="d-flex align-items-center mt-2" style="gap: 8px;">
+								<label class="mb-0 small mr-1">Start:</label>
+								<input type="text" id="visitor_start_date" class="form-control form-control-sm dateInput" style="width: 120px;" value="<?= $newVisitorsDateRange['startInput']; ?>" />
+								<label class="mb-0 small mr-1 ml-2">End:</label>
+								<input type="text" id="visitor_end_date" class="form-control form-control-sm dateInput" style="width: 120px;" value="<?= $newVisitorsDateRange['endInput']; ?>" />
+								<button type="button" id="updateVisitorDates" class="btn btn-sm btn-primary ml-2">
+									<i class="fas fa-sync-alt"></i> Update
+								</button>
 							</div>
 						</div>
 						<div class="card-body">
