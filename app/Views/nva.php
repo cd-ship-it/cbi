@@ -150,6 +150,14 @@
                     <span>Edit default case owner</span>
                 </a>
             </li>
+			
+            <!-- Nav Item - Edit Language Pastors -->
+            <li class="nav-item">
+                <a class="nav-link" href="<?=base_url('cbi/nva/languagepastors'); ?>">
+                    <i class="fas fa-fw fa-language"></i>
+                    <span>Edit Language Pastors</span>
+                </a>
+            </li>
 			<?php endif; ?>
 			
 <?php 	endif;  ?>
@@ -658,6 +666,15 @@ $(document).ready(function() {
         $('a[href*="cbi/nva/caseowner"]').closest('li.nav-item').addClass('active');
         $('a[href*="cbi/nva/caseowner"]').addClass('active');
     }
+    // Check if URL contains cbi/nva/languagepastors (Edit Language Pastors)
+    else if (currentPath.match(/\/cbi\/nva\/languagepastors/)) {
+        // Collapse "Your action items"
+        $('#collapsePages').removeClass('show');
+        
+        // Add active class to Edit Language Pastors nav item
+        $('a[href*="cbi/nva/languagepastors"]').closest('li.nav-item').addClass('active');
+        $('a[href*="cbi/nva/languagepastors"]').addClass('active');
+    }
     // Check if URL contains cbi/nva (Edit Campus Pastors)
     else if (currentPath.match(/\/cbi\/nva$/)) {
         // Collapse "Your action items"
@@ -665,8 +682,8 @@ $(document).ready(function() {
         // Don't expand "Explore Campuses" since Edit Campus Pastors is separate
         
         // Add active class to Edit Campus Pastors nav item
-        $('a[href*="cbi/nva"]').not('a[href*="caseowner"]').closest('li.nav-item').addClass('active');
-        $('a[href*="cbi/nva"]').not('a[href*="caseowner"]').addClass('active');
+        $('a[href*="cbi/nva"]').not('a[href*="caseowner"]').not('a[href*="languagepastors"]').closest('li.nav-item').addClass('active');
+        $('a[href*="cbi/nva"]').not('a[href*="caseowner"]').not('a[href*="languagepastors"]').addClass('active');
     }
     // Check if URL contains nva/table/0 (Explore Campuses section)
     // This matches URLs like: /nva/table/0 or /nva/table/0/0/0/0/tracy

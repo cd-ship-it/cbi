@@ -36,7 +36,7 @@
 						<div class="card-header py-3">
 							<h6 class="m-0 font-weight-bold text-primary">New Visitors by Campus</h6>
 							
-							<div class="d-flex align-items-center mt-2" style="gap: 8px;">
+							<div class="d-flex align-items-center flex-wrap mt-2" style="gap: 8px;">
 								<label class="mb-0 small mr-1">Start:</label>
 								<input type="text" id="visitor_start_date" class="form-control form-control-sm dateInput" style="width: 120px;" value="<?= $newVisitorsDateRange['startInput']; ?>" />
 								<label class="mb-0 small mr-1 ml-2">End:</label>

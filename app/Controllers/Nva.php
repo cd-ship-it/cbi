@@ -1088,7 +1088,7 @@ private function getFileData($file,$format)
 			$db = db_connect();
 			$builder = $db->table('baptism');
 			$builder->select('id, CONCAT(fName, " ", lName) as name');
-			$builder->where('inactive', 3);
+			$builder->whereIn('inactive', [2, 3]);
 			$builder->like('CONCAT(fName, " ", lName)', '%' . $keywords . '%');
 			$builder->limit(10);
 			
@@ -1140,11 +1140,11 @@ private function getFileData($file,$format)
 		$data['pageTitle'] = 'Edit Campus Pastors';
 		$data['adminUrl'] = base_url('cbi/nva');
 		
-		// Get all pastors for dropdown (inactive = 3)
+		// Get all pastors for dropdown (inactive = 2 or 3)
 		$db = db_connect();
 		$builder = $db->table('baptism');
 		$builder->select('id, CONCAT(fName, " ", lName) as name');
-		$builder->where('inactive', 3);
+		$builder->whereIn('inactive', [2, 3]);
 		$builder->orderBy('fName', 'ASC');
 		$data['pastors'] = $builder->get()->getResultArray();
 		
@@ -1297,10 +1297,10 @@ private function getFileData($file,$format)
 		// Get all life statuses for dropdown
 		$data['lifeStatuses'] = $visitorsModel->get_visitor_life_status();
 		
-		// Get all pastors for dropdown (inactive = 3)
+		// Get all pastors for dropdown (inactive = 2 or 3)
 		$builder = $db->table('baptism');
 		$builder->select('id, CONCAT(fName, " ", lName) as name');
-		$builder->where('inactive', 3);
+		$builder->whereIn('inactive', [2, 3]);
 		$builder->orderBy('fName', 'ASC');
 		$data['pastors'] = $builder->get()->getResultArray();
 		
@@ -1310,6 +1310,159 @@ private function getFileData($file,$format)
 		// Use nva layout - keep campuses for sidebar
 		$data['campuses'] = $this->campuses;
 		$data['main_content'] = view('nva_caseowner', $data);
+		
+		echo view('nva', $data);
+	}
+
+	public function languagePastors()
+	{
+		$data = $this->data;
+		
+		$data['canonical'] = base_url('cbi/nva/languagepastors');
+		
+		$this->webConfig->checkMemberLogin($data['canonical']);
+		
+		$this->webConfig->checkPermissionByDes(['dashboard_view'],'exit');
+		
+		$modelCampus = new CampusModel();
+		$modelProfiles = new ProfilesModel();
+		
+		$data['current_user_id'] = $this->session->get('mloggedin') ? $this->session->get('mloggedin') : 0;
+		if($data['current_user_id']){
+			$data['userName'] = $modelProfiles->getUserName($data['current_user_id']);
+			$data['userPicture'] = $modelProfiles->db_m_getUserField($data['current_user_id'],'picture');
+		}
+		$data['userPicture'] = isset($data['userPicture']) && $data['userPicture'] ? $data['userPicture'] : base_url().'/assets/images/default_user_profile.jpg';
+		
+		$action = $this->request->getPost('action');
+		
+		// Handle CRUD operations
+		if($action == 'update'){
+			$map_id = $this->request->getPost('map_id');
+			$campus_id = $this->request->getPost('campus_id');
+			$language = $this->request->getPost('language');
+			$pastor_id = $this->request->getPost('pastor_id');
+			
+			$r = 'error';
+			
+			if($map_id){
+				// Parse composite key: campus_id|language|pastor_id
+				$parts = explode('|', $map_id);
+				if(count($parts) == 3){
+					$old_campus_id = $parts[0];
+					$old_language = $parts[1];
+					$old_pastor_id = $parts[2];
+					
+					// Delete old record and insert new one
+					$db = db_connect();
+					$builder = $db->table('campus_lang_pastor_map');
+					$builder->where('campus_id', $old_campus_id);
+					$builder->where('language', $old_language);
+					$builder->where('pastor_id', $old_pastor_id);
+					$builder->delete();
+					
+					// Insert new record
+					$data_insert = [
+						'campus_id' => $campus_id,
+						'language' => $language,
+						'pastor_id' => $pastor_id
+					];
+					if($builder->insert($data_insert)){
+						$r = 'ok';
+					}
+				}
+			} else {
+				// Check if record already exists
+				$db = db_connect();
+				$builder = $db->table('campus_lang_pastor_map');
+				$builder->where('campus_id', $campus_id);
+				$builder->where('language', $language);
+				$builder->where('pastor_id', $pastor_id);
+				$exists = $builder->get()->getRowArray();
+				
+				if(!$exists){
+					$data_insert = [
+						'campus_id' => $campus_id,
+						'language' => $language,
+						'pastor_id' => $pastor_id
+					];
+					if($builder->insert($data_insert)){
+						$r = 'ok';
+					}
+				} else {
+					$r = 'ok'; // Already exists
+				}
+			}
+			
+			echo $r;
+			exit();
+		} elseif($action == 'remove'){
+			$map_id = $this->request->getPost('map_id');
+			
+			$r = 'error';
+			// Parse composite key: campus_id|language|pastor_id
+			$parts = explode('|', $map_id);
+			if(count($parts) == 3){
+				$db = db_connect();
+				$builder = $db->table('campus_lang_pastor_map');
+				$builder->where('campus_id', $parts[0]);
+				$builder->where('language', $parts[1]);
+				$builder->where('pastor_id', $parts[2]);
+				if($builder->delete()){
+					$r = 'ok';
+				}
+			}
+			
+			echo $r;
+			exit();
+		}
+		
+		// Get all mappings with joined data
+		$db = db_connect();
+		// Use raw SQL query to handle the table structure properly
+		$sql = "SELECT 
+			m.language, 
+			m.campus_id, 
+			m.pastor_id,
+			c.campus, 
+			c.id as campus_id_val, 
+			CONCAT(b.fName, ' ', b.lName) as pastor_name, 
+			b.id as pastor_id_val
+		FROM campus_lang_pastor_map m
+		LEFT JOIN campuses c ON m.campus_id = c.id
+		LEFT JOIN baptism b ON m.pastor_id = b.id
+		ORDER BY c.campus ASC, m.language ASC";
+		
+		$query = $db->query($sql);
+		$mappings = $query->getResultArray();
+		
+		// Add a composite key as 'id' for the view to use
+		foreach($mappings as &$mapping){
+			$mapping['id'] = $mapping['campus_id'] . '|' . $mapping['language'] . '|' . $mapping['pastor_id'];
+			$mapping['campus_id'] = $mapping['campus_id_val'] ?? $mapping['campus_id'];
+			$mapping['pastor_id'] = $mapping['pastor_id_val'] ?? $mapping['pastor_id'];
+		}
+		$data['mappings'] = $mappings;
+		
+		// Get all campuses for dropdown
+		$data['campusList'] = $modelCampus->findAll();
+		
+		// Languages list (hardcoded)
+		$data['languages'] = ["Cantonese", "English", "Mandarin", "Youth"];
+		
+		// Get all pastors for dropdown (inactive = 2 or 3)
+		$builder = $db->table('baptism');
+		$builder->select('id, CONCAT(fName, " ", lName) as name');
+		$builder->whereIn('inactive', [2, 3]);
+		$builder->orderBy('fName', 'ASC');
+		$data['pastors'] = $builder->get()->getResultArray();
+		
+		$data['pageTitle'] = 'Edit Language Pastors';
+		$data['adminUrl'] = base_url('cbi/nva/languagepastors');
+		
+		// Use nva layout - keep campuses for sidebar
+		$data['campuses'] = $this->campuses;
+		$data['main_content'] = view('nva_language_pastors', $data);
 		
 		echo view('nva', $data);
 	}

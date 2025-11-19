@@ -81,5 +81,6 @@ $routes->add('pto/(:num)', 'Pto::index/$1');
 
 $routes->add('cbi/nva', 'Nva::campus');
 $routes->add('cbi/nva/caseowner', 'Nva::caseOwner');
+$routes->add('cbi/nva/languagepastors', 'Nva::languagePastors');
 
 

@@ -11,3 +11,4 @@ class VisitorLifestatusPastorMapModel extends \CodeIgniter\Model
 
 }
 
+
