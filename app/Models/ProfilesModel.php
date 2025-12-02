@@ -577,20 +577,21 @@ public function archiveMailchimpEmail($bid, $email, $loggedId = null) {
 		}
 		
 		// Archive the member
-		$mcResult = $mailchimpService->updateMemberStatus($email, 'archived');
-		
+		//$mcResult = $mailchimpService->updateMemberStatus($email, 'archived');
+		$mcResult = $mailchimpService->updateMemberStatus($email, 'unsubscribed');
+
 		if ($mcResult['success']) {
 
-			return ['success' => true, 'message' => 'MailChimp: Email archived successfully'];
+			return ['success' => true, 'message' => 'MailChimp: Email unsubscribed successfully'];
 		} else {
 			$errorMsg = $mcResult['message'] ?? 'Unknown error';
-			log_message('error', 'MailChimp archive failed for bid ' . $bid . ' (email: ' . $email . '): ' . $errorMsg . ' [Debug: ' . json_encode($mcResult) . ']');
-			return ['success' => false, 'message' => 'MailChimp archive failed: ' . $errorMsg];
+			log_message('error', 'MailChimp unsubscribed failed for bid ' . $bid . ' (email: ' . $email . '): ' . $errorMsg . ' [Debug: ' . json_encode($mcResult) . ']');
+			return ['success' => false, 'message' => 'MailChimp unsubscribed failed: ' . $errorMsg];
 		}
 		
 	} catch(\Exception $e) {
 		$errorMsg = 'MailChimp error: ' . $e->getMessage();
-		log_message('error', 'MailChimp archive exception for bid ' . $bid . ': ' . $e->getMessage());
+		log_message('error', 'MailChimp unsubscribed exception for bid ' . $bid . ': ' . $e->getMessage());
 		return ['success' => false, 'message' => $errorMsg];
 	}
 }
