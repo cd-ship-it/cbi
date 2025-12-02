@@ -40,3 +40,6 @@ Thumbs.db
 # Ignore test scripts
 test_assigned_pastor.php
 
+# Ignore development-only controllers
+app/Controllers/AutoLogin.php
+
