@@ -33,16 +33,37 @@ class AutoLogin extends BaseController
         }
         
         try {
-            // Find Frederick Ng by email
             $db = db_connect();
+
+            // Get selected email from POST (form submission)
+            $selectedEmail = $this->request->getPost('email');
+
+            // If no email selected yet, show a simple HTML form with dropdown of emails
+            if (!$selectedEmail) {
+                $builder = $db->table('baptism');
+                // Use DISTINCT without escaping so it becomes "SELECT DISTINCT email"
+                $builder->select('DISTINCT email', false);
+                $builder->like('email', 'crosspointchurchsv.org', 'both');
+                $builder->orderBy('email');
+                $emailRows = $builder->get()->getResultArray();
+
+                if (!$emailRows) {
+                    echo $this->errorPage('No Emails Found', 'No baptism records found with email like %crosspointchurchsv.org');
+                    return;
+                }
+
+                echo $this->emailSelectPage($emailRows);
+                return;
+            }
+
+            // Find baptism record by the selected email
             $builder = $db->table('baptism');
             $builder->select('id as bid');
-            //$builder->where('email', 'aa@crosspointchurchsv.org');
-            $builder->where('email', 'cd@crosspointchurchsv.org');
+            $builder->where('email', $selectedEmail);
             $baptismRecord = $builder->get()->getRowArray();
             
             if (!$baptismRecord) {
-                echo $this->errorPage('User Not Found', 'Could not find user with email: cd@crosspointchurchsv.org<br>Please check the database.');
+                echo $this->errorPage('User Not Found', 'Could not find user with email: ' . esc($selectedEmail) . '<br>Please check the database.');
                 return;
             }
             
@@ -88,6 +109,76 @@ class AutoLogin extends BaseController
         } catch (\Exception $e) {
             echo $this->errorPage('Login Failed', 'Error: ' . $e->getMessage());
         }
+    }
+    
+    private function emailSelectPage(array $emailRows)
+    {
+        $optionsHtml = '';
+        foreach ($emailRows as $row) {
+            if (!isset($row['email']) || $row['email'] === '') {
+                continue;
+            }
+            $email = esc($row['email']);
+            $optionsHtml .= '<option value="' . $email . '">' . $email . '</option>';
+        }
+
+        return '<!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Select Baptism Email</title>
+            <style>
+                body {
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+                    max-width: 600px;
+                    margin: 50px auto;
+                    padding: 20px;
+                    background: #f5f5f5;
+                }
+                .container {
+                    background: white;
+                    padding: 40px;
+                    border-radius: 8px;
+                    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                    text-align: center;
+                }
+                h1 {
+                    color: #333;
+                    margin-bottom: 20px;
+                }
+                select, button {
+                    padding: 10px;
+                    font-size: 16px;
+                    margin-top: 10px;
+                }
+                button {
+                    background: #007bff;
+                    color: #fff;
+                    border: none;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    margin-left: 10px;
+                }
+                button:hover {
+                    background: #0056b3;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h1>Select Baptism Email</h1>
+                <form method="post" action="' . base_url('auto-login') . '">
+                    <label for="email">Baptism email (@crosspointchurchsv.org):</label><br><br>
+                    <select name="email" id="email" required>
+                        <option value="">-- Choose an email --</option>
+                        ' . $optionsHtml . '
+                    </select>
+                    <button type="submit">Auto Login</button>
+                </form>
+            </div>
+        </body>
+        </html>';
     }
     
     private function successPage($title, $message, $redirectUrl = null)

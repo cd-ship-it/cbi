@@ -204,7 +204,7 @@ class Pending extends BaseController
 			$userEmail = isset($baptist['email']) ? $baptist['email'] : '';
 			$userFName = isset($baptist['fName']) ? $baptist['fName'] : '';
 			$userLName = isset($baptist['lName']) ? $baptist['lName'] : '';
-
+			$mailchimpMessage = '';
 			
 			if($inactiveCode){		
 			
