@@ -79,6 +79,9 @@ $routes->add('xAdmin', 'XAdmin\Home::index');
 $routes->add('pto', 'Pto::index');
 $routes->add('pto/(:num)', 'Pto::index/$1');
 
+$routes->add('meetingminutes', 'MeetingMinutes::index');
+$routes->add('meetingminutes/view/(:num)', 'MeetingMinutes::view/$1');
+
 $routes->add('cbi/nva', 'Nva::campus');
 $routes->add('cbi/nva/caseowner', 'Nva::caseOwner');
 $routes->add('cbi/nva/languagepastors', 'Nva::languagePastors');

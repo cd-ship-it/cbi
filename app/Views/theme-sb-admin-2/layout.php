@@ -212,23 +212,17 @@ body{ color:#000;}
 				  <i class="bi bi-people-fill"></i>
 				  <span class="menu-title">New Visitor Assimilation</span>
 				</a>
+			  </li>
+			  <li class="nav-item">
+				<a class="nav-link" href="<?= base_url('meetingminutes'); ?>">
+				  <i class="fas fa-fw fa-file-alt"></i>
+				  <span class="menu-title">Meeting Minutes</span>
+				</a>
 			  </li>					
 			 
 			 				
 						
-		<?php if($webConfig->checkPermissionByDes('is_pastor')): ?>	
-				
-			  <li class="nav-item">
-				<a class="nav-link" href="<?= base_url('elearning/table/1/'.$logged_id); ?>">
-				  <i class="fas fa-fw fa-video"></i>
 
-
-
-				  <span class="menu-title">Elearning</span>
-				</a>
-			  </li>					
-			
-			<?php endif; ?>		
 			
 		
 		

@@ -56,9 +56,19 @@ class OAuth extends BaseController
 		if($action) $data['action'] = $action;
 		if($refer) $data['refer'] = $refer;
 
-		$redirect_uri = urlencode(base_url('OAuth').'?'.http_build_query($data)); 	
-		
-		
+		$redirect_uri_plain = base_url('OAuth').'?'.http_build_query($data);
+		$redirect_uri = urlencode($redirect_uri_plain);
+
+		// Dev only: show exact redirect URI for Google Console (fix redirect_uri_mismatch)
+		if (ENVIRONMENT === 'development' && isset($_GET['oauth_debug']) && $_GET['oauth_debug'] === '1') {
+			header('Content-Type: text/plain; charset=utf-8');
+			echo "Add this EXACT URI to Google Cloud Console → Credentials → Your OAuth client → Authorized redirect URIs:\n\n";
+			echo $redirect_uri_plain . "\n\n";
+			echo "For signup and change flows, add both:\n";
+			echo base_url('OAuth').'?dsf=google&action=signup' . "\n";
+			echo base_url('OAuth').'?dsf=google&action=change' . "\n";
+			return;
+		}
 		
 		if(isset($_GET['dsf'])&&$_GET['dsf']=='yahoo'){
 			
