@@ -27,12 +27,13 @@
                         $filePathHref = $filePath;
                         $filePathLabel = $filePath;
                     }
-                    $fileUrl = (strpos($filePathHref, 'http') === 0) ? $filePathHref : base_url($filePathHref);
+                    $fileUrl = ($filePath !== '') ? ($uploadsBaseUrl . '/' . basename($filePath)) : '';
                     $fileExt = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
                     $isWord = in_array($fileExt, ['doc', 'docx'], true);
                     $viewMinutesHref = ($filePath !== '' && $isWord)
                         ? 'https://view.officeapps.live.com/op/view.aspx?src=' . rawurlencode($fileUrl)
                         : $fileUrl;
+                        
                     $hasAny = $filePath !== '' || $documentUrl !== '' || $pastedText !== '';
                     $aiSummaryText = trim((string) ($meeting['ai_summary'] ?? '')) ?: '—';
                     $isPdfMinutes = ($fileExt === 'pdf' && $filePath !== '');
